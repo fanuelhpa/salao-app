@@ -18,7 +18,7 @@ import com.salao.app.viewmodel.AgendamentoViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AgendamentoScreen(viewModel: AgendamentoViewModel) {
+fun AgendamentoScreen(viewModel: AgendamentoViewModel, modifier: Modifier = Modifier) {
 
     val uiState by viewModel.uiState.collectAsState()
 

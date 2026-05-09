@@ -19,7 +19,7 @@ import com.salao.app.viewmodel.ClienteViewModel
 // ClienteScreen recebe o ViewModel que gerencia a lista de clientes
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ClienteScreen(viewModel: ClienteViewModel) {
+fun ClienteScreen(viewModel: ClienteViewModel, modifier: Modifier = Modifier) {
 
     // Observa o estado do ViewModel — redesenha a tela quando mudar
     val uiState by viewModel.uiState.collectAsState()
