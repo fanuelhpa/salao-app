@@ -66,6 +66,8 @@ dependencies {
     // DataStore — para salvar o token localmente
     implementation("androidx.datastore:datastore-preferences:1.0.0")
 
+    implementation("androidx.compose.material:material:1.6.7")
+
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)

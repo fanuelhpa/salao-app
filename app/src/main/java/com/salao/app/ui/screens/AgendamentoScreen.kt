@@ -4,6 +4,10 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.ExperimentalMaterialApi
+import androidx.compose.material.pullrefresh.PullRefreshIndicator
+import androidx.compose.material.pullrefresh.pullRefresh
+import androidx.compose.material.pullrefresh.rememberPullRefreshState
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -16,11 +20,18 @@ import com.salao.app.ui.theme.*
 import com.salao.app.viewmodel.AgendamentoUiState
 import com.salao.app.viewmodel.AgendamentoViewModel
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterialApi::class)
 @Composable
 fun AgendamentoScreen(viewModel: AgendamentoViewModel, modifier: Modifier = Modifier) {
 
     val uiState by viewModel.uiState.collectAsState()
+
+    val isRefreshing = uiState is AgendamentoUiState.Loading
+
+    val pullRefreshState = rememberPullRefreshState(
+        refreshing = isRefreshing,
+        onRefresh = { viewModel.carregarAgendamentos() }
+    )
 
     Scaffold(
         topBar = {
@@ -33,17 +44,21 @@ fun AgendamentoScreen(viewModel: AgendamentoViewModel, modifier: Modifier = Modi
         },
         containerColor = VerdeSurface
     ) { paddingValues ->
+
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
+                .pullRefresh(pullRefreshState)
         ) {
             when (uiState) {
                 is AgendamentoUiState.Loading -> {
-                    CircularProgressIndicator(
-                        modifier = Modifier.align(Alignment.Center),
-                        color = VerdeMusgo
-                    )
+                    if (!isRefreshing) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.align(Alignment.Center),
+                            color = VerdeMusgo
+                        )
+                    }
                 }
                 is AgendamentoUiState.Error -> {
                     Text(
@@ -73,20 +88,23 @@ fun AgendamentoScreen(viewModel: AgendamentoViewModel, modifier: Modifier = Modi
                     }
                 }
             }
+
+            PullRefreshIndicator(
+                refreshing = isRefreshing,
+                state = pullRefreshState,
+                modifier = Modifier.align(Alignment.TopCenter),
+                contentColor = VerdeMusgo
+            )
         }
     }
 }
 
 @Composable
 fun AgendamentoCard(agendamento: Agendamento) {
-
-    // Pair é uma classe Kotlin que agrupa dois valores relacionados
-    // Aqui usamos para retornar a cor de fundo E a cor do texto da tag juntos
-    // "to" é uma função infix do Kotlin que cria um Pair — mais legível que Pair(a, b)
     val (tagFundo, tagTexto) = when (agendamento.status) {
-        "AGENDADO"  -> TagAgendadoFundo  to TagAgendadoTexto   // verde musgo claro
-        "CONCLUIDO" -> TagConcluidoFundo to TagConcluidoTexto  // âmbar
-        "CANCELADO" -> TagCanceladoFundo to TagCanceladoTexto  // vermelho claro
+        "AGENDADO"  -> TagAgendadoFundo  to TagAgendadoTexto
+        "CONCLUIDO" -> TagConcluidoFundo to TagConcluidoTexto
+        "CANCELADO" -> TagCanceladoFundo to TagCanceladoTexto
         else        -> VerdeFundo        to VerdeMusgo
     }
 
@@ -97,8 +115,6 @@ fun AgendamentoCard(agendamento: Agendamento) {
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         border = androidx.compose.foundation.BorderStroke(0.5.dp, Divisor)
     ) {
-        // Row com SpaceBetween distribui os filhos nas extremidades
-        // (nome/serviço à esquerda, tag de status à direita)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -106,8 +122,6 @@ fun AgendamentoCard(agendamento: Agendamento) {
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.Top
         ) {
-            // weight(1f) faz a Column ocupar todo o espaço disponível
-            // deixando a tag de status só com o espaço que ela precisa
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = agendamento.clienteNome,
@@ -128,9 +142,6 @@ fun AgendamentoCard(agendamento: Agendamento) {
                     color = TextoSecundario
                 )
             }
-
-            // Surface com shape arredondado cria a tag pill de status
-            // A cor muda dinamicamente conforme o status do agendamento
             Surface(
                 shape = RoundedCornerShape(20.dp),
                 color = tagFundo
