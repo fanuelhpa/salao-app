@@ -11,7 +11,14 @@ import com.salao.app.data.repository.ClienteRepository
 import com.salao.app.data.repository.ServicoRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.launch
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+
+enum class FiltroStatus { AGENDADO, CONCLUIDO, CANCELADO }
 
 class AgendamentoViewModel(private val token: String) : ViewModel() {
 
@@ -19,8 +26,40 @@ class AgendamentoViewModel(private val token: String) : ViewModel() {
     private val clienteRepository = ClienteRepository(token)
     private val servicoRepository = ServicoRepository(token)
 
-    private val _uiState = MutableStateFlow<AgendamentoUiState>(AgendamentoUiState.Loading)
-    val uiState: StateFlow<AgendamentoUiState> = _uiState
+    // Lista completa vinda da API
+    private val _todosAgendamentos = MutableStateFlow<List<Agendamento>>(emptyList())
+
+    // Data selecionada — começa com hoje
+    private val _dataSelecionada = MutableStateFlow(LocalDate.now())
+    val dataSelecionada: StateFlow<LocalDate> = _dataSelecionada
+
+    // Filtro de status selecionado — começa com AGENDADO
+    private val _filtroStatus = MutableStateFlow(FiltroStatus.AGENDADO)
+    val filtroStatus: StateFlow<FiltroStatus> = _filtroStatus
+
+    // Estado de carregamento e erro
+    private val _carregando = MutableStateFlow(true)
+    val carregando: StateFlow<Boolean> = _carregando
+
+    private val _erro = MutableStateFlow<String?>(null)
+    val erro: StateFlow<String?> = _erro
+
+    // Agendamentos filtrados por data e status — combina os três flows
+    val agendamentosFiltrados: StateFlow<List<Agendamento>> = combine(
+        _todosAgendamentos,
+        _dataSelecionada,
+        _filtroStatus
+    ) { agendamentos, data, filtro ->
+        val dataFormatada = data.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
+        agendamentos.filter { agendamento ->
+            agendamento.dataHora.startsWith(dataFormatada) &&
+                    agendamento.status == filtro.name
+        }
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = emptyList()
+    )
 
     private val _formState = MutableStateFlow<FormState>(FormState.Idle)
     val formState: StateFlow<FormState> = _formState
@@ -37,15 +76,25 @@ class AgendamentoViewModel(private val token: String) : ViewModel() {
     }
 
     fun carregarAgendamentos() {
-        _uiState.value = AgendamentoUiState.Loading
+        _carregando.value = true
+        _erro.value = null
         viewModelScope.launch {
             val result = agendamentoRepository.listarAgendamentos()
-            _uiState.value = if (result.isSuccess) {
-                AgendamentoUiState.Success(result.getOrNull()!!)
+            if (result.isSuccess) {
+                _todosAgendamentos.value = result.getOrNull()!!
             } else {
-                AgendamentoUiState.Error("Erro ao carregar agendamentos.")
+                _erro.value = "Erro ao carregar agendamentos."
             }
+            _carregando.value = false
         }
+    }
+
+    fun selecionarData(data: LocalDate) {
+        _dataSelecionada.value = data
+    }
+
+    fun selecionarFiltro(filtro: FiltroStatus) {
+        _filtroStatus.value = filtro
     }
 
     private fun carregarClientesEServicos() {
@@ -59,27 +108,16 @@ class AgendamentoViewModel(private val token: String) : ViewModel() {
         }
     }
 
-    fun criarAgendamento(
-        clienteId: Long,
-        servicoId: Long,
-        dataHora: String,
-        observacoes: String
-    ) {
+    fun criarAgendamento(clienteId: Long, servicoId: Long, dataHora: String, observacoes: String) {
         _formState.value = FormState.Loading
         viewModelScope.launch {
             val result = agendamentoRepository.criarAgendamento(
-                AgendamentoRequest(
-                    clienteId = clienteId,
-                    servicoId = servicoId,
-                    dataHora = dataHora,
-                    observacoes = observacoes.ifBlank { null }
-                )
+                AgendamentoRequest(clienteId, servicoId, dataHora, observacoes.ifBlank { null })
             )
             if (result.isSuccess) {
                 _formState.value = FormState.Sucesso
                 carregarAgendamentos()
             } else {
-                // Usa a mensagem real do erro em vez de uma mensagem genérica
                 _formState.value = FormState.Erro(
                     result.exceptionOrNull()?.message ?: "Erro ao criar agendamento."
                 )
@@ -87,25 +125,10 @@ class AgendamentoViewModel(private val token: String) : ViewModel() {
         }
     }
 
-    fun cancelarAgendamento(id: Long) {
-        _formState.value = FormState.Loading
-        viewModelScope.launch {
-            val result = agendamentoRepository.cancelarAgendamento(id)
-            if (result.isSuccess) {
-                _formState.value = FormState.Sucesso
-                carregarAgendamentos()
-            } else {
-                _formState.value = FormState.Erro("Erro ao cancelar agendamento.")
-            }
-        }
-    }
-
     fun atualizarAgendamento(id: Long, servicoId: Long, dataHora: String) {
         _formState.value = FormState.Loading
         viewModelScope.launch {
-            val agendamentoAtual = (_uiState.value as? AgendamentoUiState.Success)
-                ?.agendamentos?.find { it.id == id }
-
+            val agendamentoAtual = _todosAgendamentos.value.find { it.id == id }
             val result = agendamentoRepository.atualizarAgendamento(
                 id,
                 AgendamentoRequest(
@@ -126,6 +149,21 @@ class AgendamentoViewModel(private val token: String) : ViewModel() {
         }
     }
 
+    fun cancelarAgendamento(id: Long) {
+        _formState.value = FormState.Loading
+        viewModelScope.launch {
+            val result = agendamentoRepository.cancelarAgendamento(id)
+            if (result.isSuccess) {
+                _formState.value = FormState.Sucesso
+                carregarAgendamentos()
+            } else {
+                _formState.value = FormState.Erro(
+                    result.exceptionOrNull()?.message ?: "Erro ao cancelar agendamento."
+                )
+            }
+        }
+    }
+
     fun concluirAgendamento(id: Long) {
         _formState.value = FormState.Loading
         viewModelScope.launch {
@@ -134,7 +172,9 @@ class AgendamentoViewModel(private val token: String) : ViewModel() {
                 _formState.value = FormState.Sucesso
                 carregarAgendamentos()
             } else {
-                _formState.value = FormState.Erro("Erro ao concluir agendamento.")
+                _formState.value = FormState.Erro(
+                    result.exceptionOrNull()?.message ?: "Erro ao concluir agendamento."
+                )
             }
         }
     }

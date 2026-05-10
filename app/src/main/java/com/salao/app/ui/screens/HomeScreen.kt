@@ -11,6 +11,7 @@ import androidx.lifecycle.ViewModelProvider
 import com.salao.app.ui.theme.*
 import com.salao.app.viewmodel.AgendamentoViewModel
 import com.salao.app.viewmodel.ClienteViewModel
+import com.salao.app.viewmodel.FiltroStatus
 
 // Enum define as abas disponíveis na tela home
 // Cada aba tem um rótulo que aparece na barra inferior
@@ -48,6 +49,14 @@ fun HomeScreen(token: String, onLogout: () -> Unit) {
             }
         }
     )
+
+    // Reseta a data para hoje quando voltar para a aba de agendamentos
+    LaunchedEffect(abaSelecionada) {
+        if (abaSelecionada == HomeTab.AGENDAMENTOS) {
+            agendamentoViewModel.selecionarData(java.time.LocalDate.now())
+            agendamentoViewModel.selecionarFiltro(FiltroStatus.AGENDADO)
+        }
+    }
 
     Scaffold(
         bottomBar = {
