@@ -1,10 +1,12 @@
 package com.salao.app.data.network
 
 import com.salao.app.data.model.Agendamento
+import com.salao.app.data.model.AgendamentoRequest
 import com.salao.app.data.model.Cliente
 import com.salao.app.data.model.ClienteRequest
 import com.salao.app.data.model.LoginRequest
 import com.salao.app.data.model.LoginResponse
+import com.salao.app.data.model.Servico
 import retrofit2.http.*
 
 interface ApiService {
@@ -18,6 +20,12 @@ interface ApiService {
     @POST("clientes")
     suspend fun criarCliente(@Body request: ClienteRequest): Cliente
 
+    @GET("servicos")
+    suspend fun listarServicos(): List<Servico>
+
     @GET("agendamentos")
     suspend fun listarAgendamentos(): List<Agendamento>
+
+    @POST("agendamentos")
+    suspend fun criarAgendamento(@Body request: AgendamentoRequest): Agendamento
 }
