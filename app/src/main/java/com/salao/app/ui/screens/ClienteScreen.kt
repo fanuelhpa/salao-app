@@ -1,5 +1,6 @@
 package com.salao.app.ui.screens
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -31,18 +32,20 @@ fun ClienteScreen(viewModel: ClienteViewModel, modifier: Modifier = Modifier) {
     val formState by viewModel.formState.collectAsState()
     val isRefreshing = uiState is ClienteUiState.Loading
 
-    // Controla se o bottomsheet de cadastro está aberto
-    var mostrarFormulario by remember { mutableStateOf(false) }
+    // null = formulário fechado
+    // Cliente() = formulário de edição aberto com os dados do cliente
+    var clienteParaEditar by remember { mutableStateOf<Cliente?>(null) }
+    var mostrarFormularioCadastro by remember { mutableStateOf(false) }
 
     val pullRefreshState = rememberPullRefreshState(
         refreshing = isRefreshing,
         onRefresh = { viewModel.carregarClientes() }
     )
 
-    // Fecha o formulário e reseta o estado quando o cadastro for bem sucedido
     LaunchedEffect(formState) {
         if (formState is FormState.Sucesso) {
-            mostrarFormulario = false
+            mostrarFormularioCadastro = false
+            clienteParaEditar = null
             viewModel.resetFormState()
         }
     }
@@ -63,9 +66,8 @@ fun ClienteScreen(viewModel: ClienteViewModel, modifier: Modifier = Modifier) {
                         }
                     }
                 },
-                // Botão + no canto superior direito
                 actions = {
-                    IconButton(onClick = { mostrarFormulario = true }) {
+                    IconButton(onClick = { mostrarFormularioCadastro = true }) {
                         Text("+", fontSize = 24.sp, color = Branco, fontWeight = FontWeight.Light)
                     }
                 },
@@ -112,7 +114,11 @@ fun ClienteScreen(viewModel: ClienteViewModel, modifier: Modifier = Modifier) {
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             items(clientes) { cliente ->
-                                ClienteCard(cliente = cliente)
+                                ClienteCard(
+                                    cliente = cliente,
+                                    // Ao clicar no card, abre o formulário de edição
+                                    onClick = { clienteParaEditar = cliente }
+                                )
                             }
                         }
                     }
@@ -128,17 +134,20 @@ fun ClienteScreen(viewModel: ClienteViewModel, modifier: Modifier = Modifier) {
         }
     }
 
-    // Formulário de cadastro como BottomSheet
-    // Aparece deslizando de baixo para cima quando mostrarFormulario = true
-    if (mostrarFormulario) {
+    // Formulário de cadastro
+    if (mostrarFormularioCadastro) {
         ModalBottomSheet(
             onDismissRequest = {
-                mostrarFormulario = false
+                mostrarFormularioCadastro = false
                 viewModel.resetFormState()
             },
             containerColor = Branco
         ) {
-            CadastroClienteForm(
+            ClienteForm(
+                titulo = "Novo Cliente",
+                nomeInicial = "",
+                emailInicial = "",
+                telefoneInicial = "",
                 formState = formState,
                 onSalvar = { nome, email, telefone ->
                     viewModel.criarCliente(nome, email, telefone)
@@ -146,17 +155,45 @@ fun ClienteScreen(viewModel: ClienteViewModel, modifier: Modifier = Modifier) {
             )
         }
     }
+
+    // Formulário de edição — abre quando clienteParaEditar não é null
+    clienteParaEditar?.let { cliente ->
+        ModalBottomSheet(
+            onDismissRequest = {
+                clienteParaEditar = null
+                viewModel.resetFormState()
+            },
+            containerColor = Branco
+        ) {
+            ClienteForm(
+                titulo = "Editar Cliente",
+                // Preenche os campos com os dados atuais do cliente
+                nomeInicial = cliente.nome,
+                emailInicial = cliente.email,
+                telefoneInicial = cliente.telefone ?: "",
+                formState = formState,
+                onSalvar = { nome, email, telefone ->
+                    viewModel.atualizarCliente(cliente.id, nome, email, telefone)
+                }
+            )
+        }
+    }
 }
 
-// Formulário de cadastro de cliente
+// Formulário reutilizável para cadastro e edição
+// Recebe os valores iniciais — vazios para cadastro, preenchidos para edição
 @Composable
-fun CadastroClienteForm(
+fun ClienteForm(
+    titulo: String,
+    nomeInicial: String,
+    emailInicial: String,
+    telefoneInicial: String,
     formState: FormState,
     onSalvar: (String, String, String) -> Unit
 ) {
-    var nome by remember { mutableStateOf("") }
-    var email by remember { mutableStateOf("") }
-    var telefone by remember { mutableStateOf("") }
+    var nome by remember { mutableStateOf(nomeInicial) }
+    var email by remember { mutableStateOf(emailInicial) }
+    var telefone by remember { mutableStateOf(telefoneInicial) }
 
     Column(
         modifier = Modifier
@@ -165,7 +202,7 @@ fun CadastroClienteForm(
             .padding(bottom = 32.dp)
     ) {
         Text(
-            text = "Novo Cliente",
+            text = titulo,
             fontSize = 18.sp,
             fontWeight = FontWeight.Medium,
             color = TextoPrimario
@@ -240,7 +277,6 @@ fun CadastroClienteForm(
                 .height(52.dp),
             shape = RoundedCornerShape(12.dp),
             colors = ButtonDefaults.buttonColors(containerColor = VerdeMusgo),
-            // Desativa o botão se os campos obrigatórios estiverem vazios
             enabled = nome.isNotBlank() && email.isNotBlank() && formState !is FormState.Loading
         ) {
             if (formState is FormState.Loading) {
@@ -257,9 +293,12 @@ fun CadastroClienteForm(
 }
 
 @Composable
-fun ClienteCard(cliente: Cliente) {
+fun ClienteCard(cliente: Cliente, onClick: () -> Unit) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            // clickable torna o card clicável
+            .clickable { onClick() },
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = Branco),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
@@ -284,7 +323,7 @@ fun ClienteCard(cliente: Cliente) {
                 }
             }
             Spacer(modifier = Modifier.width(12.dp))
-            Column {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = cliente.nome,
                     fontWeight = FontWeight.Medium,
@@ -305,6 +344,8 @@ fun ClienteCard(cliente: Cliente) {
                     )
                 }
             }
+            // Indicador visual de que o card é clicável
+            Text("›", fontSize = 20.sp, color = TextoSecundario)
         }
     }
 }

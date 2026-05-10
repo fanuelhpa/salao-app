@@ -23,4 +23,13 @@ class ClienteRepository(private val token: String) {
             Result.failure(e)
         }
     }
+
+    suspend fun atualizarCliente(id: Long, request: ClienteRequest): Result<Cliente> {
+        return try {
+            val response = RetrofitClient.comToken(token).atualizarCliente(id, request)
+            Result.success(response)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 }

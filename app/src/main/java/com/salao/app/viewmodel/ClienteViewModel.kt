@@ -29,7 +29,9 @@ class ClienteViewModel(private val token: String) : ViewModel() {
         viewModelScope.launch {
             val result = repository.listarClientes()
             _uiState.value = if (result.isSuccess) {
-                ClienteUiState.Success(result.getOrNull()!!)
+                ClienteUiState.Success(
+                    result.getOrNull()!!.sortedBy { it.nome } // ordena por nome alfabeticamente
+                )
             } else {
                 ClienteUiState.Error("Erro ao carregar clientes.")
             }
@@ -47,6 +49,22 @@ class ClienteViewModel(private val token: String) : ViewModel() {
                 carregarClientes() // atualiza a lista após criar
             } else {
                 _formState.value = FormState.Erro("Erro ao cadastrar cliente.")
+            }
+        }
+    }
+
+    fun atualizarCliente(id: Long, nome: String, email: String, telefone: String) {
+        _formState.value = FormState.Loading
+        viewModelScope.launch {
+            val result = repository.atualizarCliente(
+                id,
+                ClienteRequest(nome, email, telefone.ifBlank { null })
+            )
+            if (result.isSuccess) {
+                _formState.value = FormState.Sucesso
+                carregarClientes()
+            } else {
+                _formState.value = FormState.Erro("Erro ao atualizar cliente.")
             }
         }
     }

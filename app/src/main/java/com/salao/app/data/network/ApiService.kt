@@ -28,4 +28,19 @@ interface ApiService {
 
     @POST("agendamentos")
     suspend fun criarAgendamento(@Body request: AgendamentoRequest): Agendamento
+
+    @PUT("clientes/{id}")
+    suspend fun atualizarCliente(@Path("id") id: Long, @Body request: ClienteRequest): Cliente
+
+    @PATCH("agendamentos/{id}/cancelar")
+    suspend fun cancelarAgendamento(@Path("id") id: Long): Agendamento
+
+    @PATCH("agendamentos/{id}/concluir")
+    suspend fun concluirAgendamento(@Path("id") id: Long): Agendamento
+
+    @PUT("agendamentos/{id}")
+    suspend fun atualizarAgendamento(
+        @Path("id") id: Long,
+        @Body request: AgendamentoRequest
+    ): Agendamento
 }

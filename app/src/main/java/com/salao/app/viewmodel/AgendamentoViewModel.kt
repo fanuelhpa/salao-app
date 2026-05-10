@@ -25,7 +25,6 @@ class AgendamentoViewModel(private val token: String) : ViewModel() {
     private val _formState = MutableStateFlow<FormState>(FormState.Idle)
     val formState: StateFlow<FormState> = _formState
 
-    // Listas para popular os dropdowns do formulário
     private val _clientes = MutableStateFlow<List<Cliente>>(emptyList())
     val clientes: StateFlow<List<Cliente>> = _clientes
 
@@ -49,19 +48,14 @@ class AgendamentoViewModel(private val token: String) : ViewModel() {
         }
     }
 
-    // Carrega clientes e serviços em paralelo para popular os dropdowns
     private fun carregarClientesEServicos() {
         viewModelScope.launch {
-            val clientesResult = clienteRepository.listarClientes()
-            if (clientesResult.isSuccess) {
-                _clientes.value = clientesResult.getOrNull()!!
-            }
+            val result = clienteRepository.listarClientes()
+            if (result.isSuccess) _clientes.value = result.getOrNull()!!
         }
         viewModelScope.launch {
-            val servicosResult = servicoRepository.listarServicos()
-            if (servicosResult.isSuccess) {
-                _servicos.value = servicosResult.getOrNull()!!
-            }
+            val result = servicoRepository.listarServicos()
+            if (result.isSuccess) _servicos.value = result.getOrNull()!!
         }
     }
 
@@ -85,7 +79,62 @@ class AgendamentoViewModel(private val token: String) : ViewModel() {
                 _formState.value = FormState.Sucesso
                 carregarAgendamentos()
             } else {
-                _formState.value = FormState.Erro("Erro ao criar agendamento.")
+                // Usa a mensagem real do erro em vez de uma mensagem genérica
+                _formState.value = FormState.Erro(
+                    result.exceptionOrNull()?.message ?: "Erro ao criar agendamento."
+                )
+            }
+        }
+    }
+
+    fun cancelarAgendamento(id: Long) {
+        _formState.value = FormState.Loading
+        viewModelScope.launch {
+            val result = agendamentoRepository.cancelarAgendamento(id)
+            if (result.isSuccess) {
+                _formState.value = FormState.Sucesso
+                carregarAgendamentos()
+            } else {
+                _formState.value = FormState.Erro("Erro ao cancelar agendamento.")
+            }
+        }
+    }
+
+    fun atualizarAgendamento(id: Long, servicoId: Long, dataHora: String) {
+        _formState.value = FormState.Loading
+        viewModelScope.launch {
+            val agendamentoAtual = (_uiState.value as? AgendamentoUiState.Success)
+                ?.agendamentos?.find { it.id == id }
+
+            val result = agendamentoRepository.atualizarAgendamento(
+                id,
+                AgendamentoRequest(
+                    clienteId = agendamentoAtual?.clienteId ?: 0,
+                    servicoId = servicoId,
+                    dataHora = dataHora,
+                    observacoes = null
+                )
+            )
+            if (result.isSuccess) {
+                _formState.value = FormState.Sucesso
+                carregarAgendamentos()
+            } else {
+                _formState.value = FormState.Erro(
+                    result.exceptionOrNull()?.message ?: "Erro ao atualizar agendamento."
+                )
+            }
+        }
+    }
+
+    fun concluirAgendamento(id: Long) {
+        _formState.value = FormState.Loading
+        viewModelScope.launch {
+            val result = agendamentoRepository.concluirAgendamento(id)
+            if (result.isSuccess) {
+                _formState.value = FormState.Sucesso
+                carregarAgendamentos()
+            } else {
+                _formState.value = FormState.Erro("Erro ao concluir agendamento.")
             }
         }
     }

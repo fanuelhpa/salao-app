@@ -1,5 +1,6 @@
 package com.salao.app.ui.screens
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -33,7 +34,8 @@ fun AgendamentoScreen(viewModel: AgendamentoViewModel, modifier: Modifier = Modi
     val servicos by viewModel.servicos.collectAsState()
     val isRefreshing = uiState is AgendamentoUiState.Loading
 
-    var mostrarFormulario by remember { mutableStateOf(false) }
+    var mostrarFormularioCadastro by remember { mutableStateOf(false) }
+    var agendamentoParaEditar by remember { mutableStateOf<Agendamento?>(null) }
 
     val pullRefreshState = rememberPullRefreshState(
         refreshing = isRefreshing,
@@ -42,7 +44,8 @@ fun AgendamentoScreen(viewModel: AgendamentoViewModel, modifier: Modifier = Modi
 
     LaunchedEffect(formState) {
         if (formState is FormState.Sucesso) {
-            mostrarFormulario = false
+            mostrarFormularioCadastro = false
+            agendamentoParaEditar = null
             viewModel.resetFormState()
         }
     }
@@ -54,7 +57,7 @@ fun AgendamentoScreen(viewModel: AgendamentoViewModel, modifier: Modifier = Modi
                     Text("Agendamentos", color = Branco, fontWeight = FontWeight.Medium)
                 },
                 actions = {
-                    IconButton(onClick = { mostrarFormulario = true }) {
+                    IconButton(onClick = { mostrarFormularioCadastro = true }) {
                         Text("+", fontSize = 24.sp, color = Branco, fontWeight = FontWeight.Light)
                     }
                 },
@@ -101,7 +104,10 @@ fun AgendamentoScreen(viewModel: AgendamentoViewModel, modifier: Modifier = Modi
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             items(agendamentos) { agendamento ->
-                                AgendamentoCard(agendamento = agendamento)
+                                AgendamentoCard(
+                                    agendamento = agendamento,
+                                    onClick = { agendamentoParaEditar = agendamento }
+                                )
                             }
                         }
                     }
@@ -117,10 +123,11 @@ fun AgendamentoScreen(viewModel: AgendamentoViewModel, modifier: Modifier = Modi
         }
     }
 
-    if (mostrarFormulario) {
+    // Formulário de cadastro
+    if (mostrarFormularioCadastro) {
         ModalBottomSheet(
             onDismissRequest = {
-                mostrarFormulario = false
+                mostrarFormularioCadastro = false
                 viewModel.resetFormState()
             },
             containerColor = Branco
@@ -131,6 +138,352 @@ fun AgendamentoScreen(viewModel: AgendamentoViewModel, modifier: Modifier = Modi
                 formState = formState,
                 onSalvar = { clienteId, servicoId, dataHora, observacoes ->
                     viewModel.criarAgendamento(clienteId, servicoId, dataHora, observacoes)
+                }
+            )
+        }
+    }
+
+    // Formulário de edição
+    agendamentoParaEditar?.let { agendamento ->
+        ModalBottomSheet(
+            onDismissRequest = {
+                agendamentoParaEditar = null
+                viewModel.resetFormState()
+            },
+            containerColor = Branco
+        ) {
+            EdicaoAgendamentoForm(
+                agendamento = agendamento,
+                servicos = servicos,
+                formState = formState,
+                onCancelar = { viewModel.cancelarAgendamento(agendamento.id) },
+                onConcluir = { viewModel.concluirAgendamento(agendamento.id) },
+                onAlterarServico = { servicoId, dataHora ->
+                    // Agora chama atualizarAgendamento em vez de criarAgendamento
+                    viewModel.atualizarAgendamento(agendamento.id, servicoId, dataHora)
+                }
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun EdicaoAgendamentoForm(
+    agendamento: Agendamento,
+    servicos: List<Servico>,
+    formState: FormState,
+    onCancelar: () -> Unit,
+    onConcluir: () -> Unit,
+    onAlterarServico: (Long, String) -> Unit
+) {
+    var servicoSelecionado by remember {
+        mutableStateOf(servicos.find { it.id == agendamento.servicoId })
+    }
+    var dataSelecionada by remember { mutableStateOf("") }
+    var horaSelecionada by remember { mutableStateOf("") }
+    var servicoDropdownAberto by remember { mutableStateOf(false) }
+    var mostrarDatePicker by remember { mutableStateOf(false) }
+    var mostrarTimePicker by remember { mutableStateOf(false) }
+    val datePickerState = rememberDatePickerState()
+    val timePickerState = rememberTimePickerState(
+        initialHour = 8,
+        initialMinute = 0,
+        is24Hour = true
+    )
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 24.dp)
+            .padding(bottom = 32.dp)
+    ) {
+        Text(
+            text = "Editar Agendamento",
+            fontSize = 18.sp,
+            fontWeight = FontWeight.Medium,
+            color = TextoPrimario
+        )
+
+        Spacer(modifier = Modifier.height(4.dp))
+
+        Text(
+            text = agendamento.clienteNome,
+            fontSize = 14.sp,
+            color = TextoSecundario
+        )
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // Dropdown de Serviço
+        ExposedDropdownMenuBox(
+            expanded = servicoDropdownAberto,
+            onExpandedChange = { servicoDropdownAberto = it }
+        ) {
+            OutlinedTextField(
+                value = servicoSelecionado?.nome ?: agendamento.servicoNome,
+                onValueChange = {},
+                readOnly = true,
+                label = { Text("Servico") },
+                trailingIcon = {
+                    ExposedDropdownMenuDefaults.TrailingIcon(expanded = servicoDropdownAberto)
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .menuAnchor(),
+                shape = RoundedCornerShape(12.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = VerdeMusgo,
+                    focusedLabelColor = VerdeMusgo
+                )
+            )
+            ExposedDropdownMenu(
+                expanded = servicoDropdownAberto,
+                onDismissRequest = { servicoDropdownAberto = false }
+            ) {
+                servicos.forEach { servico ->
+                    DropdownMenuItem(
+                        text = {
+                            Column {
+                                Text(servico.nome, fontSize = 14.sp)
+                                Text(
+                                    "${servico.duracaoMinutos} min • R$ ${"%.2f".format(servico.preco)}",
+                                    fontSize = 12.sp,
+                                    color = TextoSecundario
+                                )
+                            }
+                        },
+                        onClick = {
+                            servicoSelecionado = servico
+                            servicoDropdownAberto = false
+                        }
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // Botão de data
+        OutlinedButton(
+            onClick = { mostrarDatePicker = true },
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = VerdeMusgo),
+            border = androidx.compose.foundation.BorderStroke(1.dp, VerdeMusgo)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = if (dataSelecionada.isBlank()) formatarDataHora(agendamento.dataHora).split(" ")[0]
+                    else dataSelecionada,
+                    color = TextoPrimario
+                )
+                Text("📅", fontSize = 18.sp)
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // Botão de hora
+        OutlinedButton(
+            onClick = { mostrarTimePicker = true },
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = VerdeMusgo),
+            border = androidx.compose.foundation.BorderStroke(1.dp, VerdeMusgo)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = if (horaSelecionada.isBlank()) formatarDataHora(agendamento.dataHora).split(" ")[1]
+                    else horaSelecionada,
+                    color = TextoPrimario
+                )
+                Text("🕐", fontSize = 18.sp)
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        if (formState is FormState.Erro) {
+            Text(
+                text = (formState as FormState.Erro).message,
+                color = MaterialTheme.colorScheme.error,
+                fontSize = 13.sp
+            )
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // Botão de salvar alterações — só aparece se status for AGENDADO
+        if (agendamento.status == "AGENDADO") {
+            Button(
+                onClick = {
+                    val dataFinal = if (dataSelecionada.isBlank()) {
+                        // Usa a data atual do agendamento se não mudou
+                        val partes = agendamento.dataHora.split("T")
+                        partes[0]
+                    } else {
+                        val p = dataSelecionada.split("/")
+                        "${p[2]}-${p[1]}-${p[0]}"
+                    }
+                    val horaFinal = if (horaSelecionada.isBlank()) {
+                        agendamento.dataHora.split("T")[1].substring(0, 5)
+                    } else {
+                        horaSelecionada
+                    }
+                    onAlterarServico(
+                        servicoSelecionado?.id ?: agendamento.servicoId,
+                        "${dataFinal}T${horaFinal}:00"
+                    )
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = VerdeMusgo),
+                enabled = formState !is FormState.Loading
+            ) {
+                if (formState is FormState.Loading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(22.dp),
+                        color = Branco,
+                        strokeWidth = 2.dp
+                    )
+                } else {
+                    Text("Salvar alteracoes", fontSize = 16.sp, fontWeight = FontWeight.Medium)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Botão de concluir
+            Button(
+                onClick = onConcluir,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = TagConcluidoFundo,
+                    contentColor = TagConcluidoTexto
+                ),
+                enabled = formState !is FormState.Loading
+            ) {
+                Text("Concluir agendamento", fontSize = 16.sp, fontWeight = FontWeight.Medium)
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Botão de cancelar
+            OutlinedButton(
+                onClick = onCancelar,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = TagCanceladoTexto),
+                border = androidx.compose.foundation.BorderStroke(1.dp, TagCanceladoTexto),
+                enabled = formState !is FormState.Loading
+            ) {
+                Text("Cancelar agendamento", fontSize = 16.sp, fontWeight = FontWeight.Medium)
+            }
+        } else {
+            // Se já está concluído ou cancelado, só mostra o status
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                color = if (agendamento.status == "CONCLUIDO") TagConcluidoFundo else TagCanceladoFundo
+            ) {
+                Text(
+                    text = "Este agendamento ja foi ${agendamento.status.lowercase()}.",
+                    modifier = Modifier.padding(16.dp),
+                    color = if (agendamento.status == "CONCLUIDO") TagConcluidoTexto else TagCanceladoTexto,
+                    fontSize = 14.sp
+                )
+            }
+        }
+
+        // Dialog do calendário
+        if (mostrarDatePicker) {
+            DatePickerDialog(
+                onDismissRequest = { mostrarDatePicker = false },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            datePickerState.selectedDateMillis?.let { millis ->
+                                val calendar = java.util.Calendar.getInstance(
+                                    java.util.TimeZone.getTimeZone("UTC")
+                                )
+                                calendar.timeInMillis = millis
+                                val dia = calendar.get(java.util.Calendar.DAY_OF_MONTH)
+                                    .toString().padStart(2, '0')
+                                val mes = (calendar.get(java.util.Calendar.MONTH) + 1)
+                                    .toString().padStart(2, '0')
+                                val ano = calendar.get(java.util.Calendar.YEAR)
+                                dataSelecionada = "$dia/$mes/$ano"
+                            }
+                            mostrarDatePicker = false
+                        }
+                    ) { Text("Confirmar", color = VerdeMusgo) }
+                },
+                dismissButton = {
+                    TextButton(onClick = { mostrarDatePicker = false }) {
+                        Text("Cancelar", color = TextoSecundario)
+                    }
+                },
+                colors = DatePickerDefaults.colors(containerColor = Branco)
+            ) {
+                DatePicker(
+                    state = datePickerState,
+                    colors = DatePickerDefaults.colors(
+                        selectedDayContainerColor = VerdeMusgo,
+                        todayDateBorderColor = VerdeMusgo,
+                        currentYearContentColor = VerdeMusgo,
+                        selectedYearContainerColor = VerdeMusgo
+                    )
+                )
+            }
+        }
+
+        // Dialog do seletor de hora
+        if (mostrarTimePicker) {
+            AlertDialog(
+                onDismissRequest = { mostrarTimePicker = false },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            val hora = timePickerState.hour.toString().padStart(2, '0')
+                            val minuto = timePickerState.minute.toString().padStart(2, '0')
+                            horaSelecionada = "$hora:$minuto"
+                            mostrarTimePicker = false
+                        }
+                    ) { Text("Confirmar", color = VerdeMusgo) }
+                },
+                dismissButton = {
+                    TextButton(onClick = { mostrarTimePicker = false }) {
+                        Text("Cancelar", color = TextoSecundario)
+                    }
+                },
+                containerColor = Branco,
+                text = {
+                    TimePicker(
+                        state = timePickerState,
+                        colors = TimePickerDefaults.colors(
+                            clockDialColor = VerdeFundo,
+                            selectorColor = VerdeMusgo,
+                            containerColor = Branco,
+                            timeSelectorSelectedContainerColor = VerdeMusgo,
+                            timeSelectorSelectedContentColor = Branco
+                        )
+                    )
                 }
             )
         }
@@ -176,7 +529,6 @@ fun CadastroAgendamentoForm(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Dropdown de Cliente
         ExposedDropdownMenuBox(
             expanded = clienteDropdownAberto,
             onExpandedChange = { clienteDropdownAberto = it }
@@ -216,7 +568,6 @@ fun CadastroAgendamentoForm(
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // Dropdown de Serviço
         ExposedDropdownMenuBox(
             expanded = servicoDropdownAberto,
             onExpandedChange = { servicoDropdownAberto = it }
@@ -265,7 +616,6 @@ fun CadastroAgendamentoForm(
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // Botão que abre o calendário
         OutlinedButton(
             onClick = { mostrarDatePicker = true },
             modifier = Modifier.fillMaxWidth(),
@@ -288,7 +638,6 @@ fun CadastroAgendamentoForm(
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // Botão que abre o seletor de hora
         OutlinedButton(
             onClick = { mostrarTimePicker = true },
             modifier = Modifier.fillMaxWidth(),
@@ -371,7 +720,6 @@ fun CadastroAgendamentoForm(
             }
         }
 
-        // Dialog do calendário
         if (mostrarDatePicker) {
             DatePickerDialog(
                 onDismissRequest = { mostrarDatePicker = false },
@@ -392,9 +740,7 @@ fun CadastroAgendamentoForm(
                             }
                             mostrarDatePicker = false
                         }
-                    ) {
-                        Text("Confirmar", color = VerdeMusgo)
-                    }
+                    ) { Text("Confirmar", color = VerdeMusgo) }
                 },
                 dismissButton = {
                     TextButton(onClick = { mostrarDatePicker = false }) {
@@ -415,7 +761,6 @@ fun CadastroAgendamentoForm(
             }
         }
 
-        // Dialog do seletor de hora
         if (mostrarTimePicker) {
             AlertDialog(
                 onDismissRequest = { mostrarTimePicker = false },
@@ -427,9 +772,7 @@ fun CadastroAgendamentoForm(
                             horaSelecionada = "$hora:$minuto"
                             mostrarTimePicker = false
                         }
-                    ) {
-                        Text("Confirmar", color = VerdeMusgo)
-                    }
+                    ) { Text("Confirmar", color = VerdeMusgo) }
                 },
                 dismissButton = {
                     TextButton(onClick = { mostrarTimePicker = false }) {
@@ -453,8 +796,9 @@ fun CadastroAgendamentoForm(
         }
     }
 }
+
 @Composable
-fun AgendamentoCard(agendamento: Agendamento) {
+fun AgendamentoCard(agendamento: Agendamento, onClick: () -> Unit) {
     val (tagFundo, tagTexto) = when (agendamento.status) {
         "AGENDADO"  -> TagAgendadoFundo  to TagAgendadoTexto
         "CONCLUIDO" -> TagConcluidoFundo to TagConcluidoTexto
@@ -463,7 +807,9 @@ fun AgendamentoCard(agendamento: Agendamento) {
     }
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() },
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = Branco),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
@@ -496,17 +842,21 @@ fun AgendamentoCard(agendamento: Agendamento) {
                     color = TextoSecundario
                 )
             }
-            Surface(
-                shape = RoundedCornerShape(20.dp),
-                color = tagFundo
-            ) {
-                Text(
-                    text = agendamento.status,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = tagTexto,
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                )
+            Column(horizontalAlignment = Alignment.End) {
+                Surface(
+                    shape = RoundedCornerShape(20.dp),
+                    color = tagFundo
+                ) {
+                    Text(
+                        text = agendamento.status,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = tagTexto,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+                Text("›", fontSize = 20.sp, color = TextoSecundario)
             }
         }
     }
