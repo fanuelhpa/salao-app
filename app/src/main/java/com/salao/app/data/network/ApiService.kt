@@ -47,4 +47,7 @@ interface ApiService {
 
     @PUT("servicos/{id}")
     suspend fun atualizarServico(@Path("id") id: Long, @Body request: ServicoRequest): Servico
+
+    @POST("servicos")
+    suspend fun criarServico(@Body request: ServicoRequest): Servico
 }

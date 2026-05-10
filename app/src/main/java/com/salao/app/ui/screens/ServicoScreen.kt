@@ -36,6 +36,7 @@ fun ServicoScreen(
     val isRefreshing = uiState is ServicoUiState.Loading
 
     var servicoParaEditar by remember { mutableStateOf<Servico?>(null) }
+    var mostrarFormularioCadastro by remember { mutableStateOf(false) }
 
     val pullRefreshState = rememberPullRefreshState(
         refreshing = isRefreshing,
@@ -45,6 +46,7 @@ fun ServicoScreen(
     LaunchedEffect(formState) {
         if (formState is FormState.Sucesso) {
             servicoParaEditar = null
+            mostrarFormularioCadastro = false
             viewModel.resetFormState()
         }
     }
@@ -62,6 +64,9 @@ fun ServicoScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = { mostrarFormularioCadastro = true }) {
+                        Text("+", fontSize = 24.sp, color = Branco, fontWeight = FontWeight.Light)
+                    }
                     MenuLogout(onLogout = onLogout)
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = VerdeMusgo)
@@ -131,6 +136,30 @@ fun ServicoScreen(
         }
     }
 
+    // Formulário de cadastro
+    if (mostrarFormularioCadastro) {
+        ModalBottomSheet(
+            onDismissRequest = {
+                mostrarFormularioCadastro = false
+                viewModel.resetFormState()
+            },
+            containerColor = Branco
+        ) {
+            ServicoForm(
+                titulo = "Novo Servico",
+                nomeInicial = "",
+                descricaoInicial = "",
+                duracaoInicial = "",
+                precoInicial = "",
+                formState = formState,
+                onSalvar = { nome, descricao, duracao, preco ->
+                    viewModel.criarServico(nome, descricao, duracao, preco)
+                }
+            )
+        }
+    }
+
+    // Formulário de edição
     servicoParaEditar?.let { servico ->
         ModalBottomSheet(
             onDismissRequest = {
@@ -139,27 +168,36 @@ fun ServicoScreen(
             },
             containerColor = Branco
         ) {
-            EdicaoServicoForm(
-                servico = servico,
+            ServicoForm(
+                titulo = "Editar Servico",
+                nomeInicial = servico.nome,
+                descricaoInicial = servico.descricao ?: "",
+                duracaoInicial = servico.duracaoMinutos.toString(),
+                precoInicial = servico.preco.toString(),
                 formState = formState,
-                onSalvar = { nome, descricao, duracaoMinutos, preco ->
-                    viewModel.atualizarServico(servico.id, nome, descricao, duracaoMinutos, preco)
+                onSalvar = { nome, descricao, duracao, preco ->
+                    viewModel.atualizarServico(servico.id, nome, descricao, duracao, preco)
                 }
             )
         }
     }
 }
 
+// Formulário reutilizável para cadastro e edição de serviço
 @Composable
-fun EdicaoServicoForm(
-    servico: Servico,
+fun ServicoForm(
+    titulo: String,
+    nomeInicial: String,
+    descricaoInicial: String,
+    duracaoInicial: String,
+    precoInicial: String,
     formState: FormState,
     onSalvar: (String, String, Int, Double) -> Unit
 ) {
-    var nome by remember { mutableStateOf(servico.nome) }
-    var descricao by remember { mutableStateOf(servico.descricao ?: "") }
-    var duracaoMinutos by remember { mutableStateOf(servico.duracaoMinutos.toString()) }
-    var preco by remember { mutableStateOf(servico.preco.toString()) }
+    var nome by remember { mutableStateOf(nomeInicial) }
+    var descricao by remember { mutableStateOf(descricaoInicial) }
+    var duracaoMinutos by remember { mutableStateOf(duracaoInicial) }
+    var preco by remember { mutableStateOf(precoInicial) }
 
     Column(
         modifier = Modifier
@@ -168,7 +206,7 @@ fun EdicaoServicoForm(
             .padding(bottom = 32.dp)
     ) {
         Text(
-            text = "Editar Servico",
+            text = titulo,
             fontSize = 18.sp,
             fontWeight = FontWeight.Medium,
             color = TextoPrimario
@@ -256,8 +294,8 @@ fun EdicaoServicoForm(
                 onSalvar(
                     nome,
                     descricao,
-                    duracaoMinutos.toIntOrNull() ?: servico.duracaoMinutos,
-                    preco.toDoubleOrNull() ?: servico.preco
+                    duracaoMinutos.toIntOrNull() ?: 0,
+                    preco.toDoubleOrNull() ?: 0.0
                 )
             },
             modifier = Modifier
@@ -265,7 +303,10 @@ fun EdicaoServicoForm(
                 .height(52.dp),
             shape = RoundedCornerShape(12.dp),
             colors = ButtonDefaults.buttonColors(containerColor = VerdeMusgo),
-            enabled = nome.isNotBlank() && formState !is FormState.Loading
+            enabled = nome.isNotBlank() &&
+                    duracaoMinutos.isNotBlank() &&
+                    preco.isNotBlank() &&
+                    formState !is FormState.Loading
         ) {
             if (formState is FormState.Loading) {
                 CircularProgressIndicator(

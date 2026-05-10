@@ -51,6 +51,23 @@ class ServicoViewModel(private val token: String) : ViewModel() {
         }
     }
 
+    fun criarServico(nome: String, descricao: String, duracaoMinutos: Int, preco: Double) {
+        _formState.value = FormState.Loading
+        viewModelScope.launch {
+            val result = repository.criarServico(
+                ServicoRequest(nome, descricao.ifBlank { null }, duracaoMinutos, preco.toBigDecimal())
+            )
+            if (result.isSuccess) {
+                _formState.value = FormState.Sucesso
+                carregarServicos()
+            } else {
+                _formState.value = FormState.Erro(
+                    result.exceptionOrNull()?.message ?: "Erro ao criar servico."
+                )
+            }
+        }
+    }
+
     fun resetFormState() {
         _formState.value = FormState.Idle
     }
