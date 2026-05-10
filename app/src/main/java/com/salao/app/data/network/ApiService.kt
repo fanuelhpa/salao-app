@@ -7,6 +7,7 @@ import com.salao.app.data.model.ClienteRequest
 import com.salao.app.data.model.LoginRequest
 import com.salao.app.data.model.LoginResponse
 import com.salao.app.data.model.Servico
+import com.salao.app.data.model.ServicoRequest
 import retrofit2.http.*
 
 interface ApiService {
@@ -43,4 +44,7 @@ interface ApiService {
         @Path("id") id: Long,
         @Body request: AgendamentoRequest
     ): Agendamento
+
+    @PUT("servicos/{id}")
+    suspend fun atualizarServico(@Path("id") id: Long, @Body request: ServicoRequest): Servico
 }

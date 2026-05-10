@@ -29,7 +29,11 @@ import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterialApi::class)
 @Composable
-fun AgendamentoScreen(viewModel: AgendamentoViewModel, modifier: Modifier = Modifier) {
+fun AgendamentoScreen(
+    viewModel: AgendamentoViewModel,
+    modifier: Modifier = Modifier,
+    onLogout: () -> Unit = {}
+) {
 
     val agendamentos by viewModel.agendamentosFiltrados.collectAsState()
     val formState by viewModel.formState.collectAsState()
@@ -87,6 +91,7 @@ fun AgendamentoScreen(viewModel: AgendamentoViewModel, modifier: Modifier = Modi
                     IconButton(onClick = { mostrarFormularioCadastro = true }) {
                         Text("+", fontSize = 24.sp, color = Branco, fontWeight = FontWeight.Light)
                     }
+                    MenuLogout(onLogout = onLogout)
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = VerdeMusgo)
             )
@@ -150,7 +155,12 @@ fun AgendamentoScreen(viewModel: AgendamentoViewModel, modifier: Modifier = Modi
                 } else {
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 16.dp),
+                        contentPadding = PaddingValues(
+                            start = 16.dp,
+                            end = 16.dp,
+                            top = 0.dp,
+                            bottom = 80.dp
+                        ),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         items(agendamentos) { agendamento ->

@@ -18,38 +18,33 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.salao.app.data.model.Cliente
+import com.salao.app.data.model.Servico
 import com.salao.app.ui.theme.*
-import com.salao.app.viewmodel.ClienteUiState
-import com.salao.app.viewmodel.ClienteViewModel
 import com.salao.app.viewmodel.FormState
+import com.salao.app.viewmodel.ServicoUiState
+import com.salao.app.viewmodel.ServicoViewModel
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterialApi::class)
 @Composable
-fun ClienteScreen(
-    viewModel: ClienteViewModel,
+fun ServicoScreen(
+    viewModel: ServicoViewModel,
     modifier: Modifier = Modifier,
-    onLogout: () -> Unit = {}
+    onLogout: () -> Unit
 ) {
-
     val uiState by viewModel.uiState.collectAsState()
     val formState by viewModel.formState.collectAsState()
-    val isRefreshing = uiState is ClienteUiState.Loading
+    val isRefreshing = uiState is ServicoUiState.Loading
 
-    // null = formulário fechado
-    // Cliente() = formulário de edição aberto com os dados do cliente
-    var clienteParaEditar by remember { mutableStateOf<Cliente?>(null) }
-    var mostrarFormularioCadastro by remember { mutableStateOf(false) }
+    var servicoParaEditar by remember { mutableStateOf<Servico?>(null) }
 
     val pullRefreshState = rememberPullRefreshState(
         refreshing = isRefreshing,
-        onRefresh = { viewModel.carregarClientes() }
+        onRefresh = { viewModel.carregarServicos() }
     )
 
     LaunchedEffect(formState) {
         if (formState is FormState.Sucesso) {
-            mostrarFormularioCadastro = false
-            clienteParaEditar = null
+            servicoParaEditar = null
             viewModel.resetFormState()
         }
     }
@@ -59,21 +54,14 @@ fun ClienteScreen(
             TopAppBar(
                 title = {
                     Column {
-                        Text("Clientes", color = Branco, fontWeight = FontWeight.Medium)
-                        if (uiState is ClienteUiState.Success) {
-                            val total = (uiState as ClienteUiState.Success).clientes.size
-                            Text(
-                                "$total cadastrados",
-                                color = Branco.copy(alpha = 0.7f),
-                                fontSize = 12.sp
-                            )
+                        Text("Servicos", color = Branco, fontWeight = FontWeight.Medium)
+                        if (uiState is ServicoUiState.Success) {
+                            val total = (uiState as ServicoUiState.Success).servicos.size
+                            Text("$total servicos", color = Branco.copy(alpha = 0.7f), fontSize = 12.sp)
                         }
                     }
                 },
                 actions = {
-                    IconButton(onClick = { mostrarFormularioCadastro = true }) {
-                        Text("+", fontSize = 24.sp, color = Branco, fontWeight = FontWeight.Light)
-                    }
                     MenuLogout(onLogout = onLogout)
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = VerdeMusgo)
@@ -89,7 +77,7 @@ fun ClienteScreen(
                 .pullRefresh(pullRefreshState)
         ) {
             when (uiState) {
-                is ClienteUiState.Loading -> {
+                is ServicoUiState.Loading -> {
                     if (!isRefreshing) {
                         CircularProgressIndicator(
                             modifier = Modifier.align(Alignment.Center),
@@ -97,18 +85,18 @@ fun ClienteScreen(
                         )
                     }
                 }
-                is ClienteUiState.Error -> {
+                is ServicoUiState.Error -> {
                     Text(
-                        text = (uiState as ClienteUiState.Error).message,
+                        text = (uiState as ServicoUiState.Error).message,
                         color = MaterialTheme.colorScheme.error,
                         modifier = Modifier.align(Alignment.Center)
                     )
                 }
-                is ClienteUiState.Success -> {
-                    val clientes = (uiState as ClienteUiState.Success).clientes
-                    if (clientes.isEmpty()) {
+                is ServicoUiState.Success -> {
+                    val servicos = (uiState as ServicoUiState.Success).servicos
+                    if (servicos.isEmpty()) {
                         Text(
-                            text = "Nenhum cliente cadastrado.",
+                            text = "Nenhum servico cadastrado.",
                             modifier = Modifier.align(Alignment.Center),
                             color = TextoSecundario
                         )
@@ -119,15 +107,14 @@ fun ClienteScreen(
                                 start = 16.dp,
                                 end = 16.dp,
                                 top = 16.dp,
-                                bottom = 80.dp  // aumentado para compensar a barra de navegação
+                                bottom = 80.dp
                             ),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ){
-                            items(clientes) { cliente ->
-                                ClienteCard(
-                                    cliente = cliente,
-                                    // Ao clicar no card, abre o formulário de edição
-                                    onClick = { clienteParaEditar = cliente }
+                        ) {
+                            items(servicos) { servico ->
+                                ServicoCard(
+                                    servico = servico,
+                                    onClick = { servicoParaEditar = servico }
                                 )
                             }
                         }
@@ -144,66 +131,35 @@ fun ClienteScreen(
         }
     }
 
-    // Formulário de cadastro
-    if (mostrarFormularioCadastro) {
+    servicoParaEditar?.let { servico ->
         ModalBottomSheet(
             onDismissRequest = {
-                mostrarFormularioCadastro = false
+                servicoParaEditar = null
                 viewModel.resetFormState()
             },
             containerColor = Branco
         ) {
-            ClienteForm(
-                titulo = "Novo Cliente",
-                nomeInicial = "",
-                emailInicial = "",
-                telefoneInicial = "",
+            EdicaoServicoForm(
+                servico = servico,
                 formState = formState,
-                onSalvar = { nome, email, telefone ->
-                    viewModel.criarCliente(nome, email, telefone)
-                }
-            )
-        }
-    }
-
-    // Formulário de edição — abre quando clienteParaEditar não é null
-    clienteParaEditar?.let { cliente ->
-        ModalBottomSheet(
-            onDismissRequest = {
-                clienteParaEditar = null
-                viewModel.resetFormState()
-            },
-            containerColor = Branco
-        ) {
-            ClienteForm(
-                titulo = "Editar Cliente",
-                // Preenche os campos com os dados atuais do cliente
-                nomeInicial = cliente.nome,
-                emailInicial = cliente.email,
-                telefoneInicial = cliente.telefone ?: "",
-                formState = formState,
-                onSalvar = { nome, email, telefone ->
-                    viewModel.atualizarCliente(cliente.id, nome, email, telefone)
+                onSalvar = { nome, descricao, duracaoMinutos, preco ->
+                    viewModel.atualizarServico(servico.id, nome, descricao, duracaoMinutos, preco)
                 }
             )
         }
     }
 }
 
-// Formulário reutilizável para cadastro e edição
-// Recebe os valores iniciais — vazios para cadastro, preenchidos para edição
 @Composable
-fun ClienteForm(
-    titulo: String,
-    nomeInicial: String,
-    emailInicial: String,
-    telefoneInicial: String,
+fun EdicaoServicoForm(
+    servico: Servico,
     formState: FormState,
-    onSalvar: (String, String, String) -> Unit
+    onSalvar: (String, String, Int, Double) -> Unit
 ) {
-    var nome by remember { mutableStateOf(nomeInicial) }
-    var email by remember { mutableStateOf(emailInicial) }
-    var telefone by remember { mutableStateOf(telefoneInicial) }
+    var nome by remember { mutableStateOf(servico.nome) }
+    var descricao by remember { mutableStateOf(servico.descricao ?: "") }
+    var duracaoMinutos by remember { mutableStateOf(servico.duracaoMinutos.toString()) }
+    var preco by remember { mutableStateOf(servico.preco.toString()) }
 
     Column(
         modifier = Modifier
@@ -212,7 +168,7 @@ fun ClienteForm(
             .padding(bottom = 32.dp)
     ) {
         Text(
-            text = titulo,
+            text = "Editar Servico",
             fontSize = 18.sp,
             fontWeight = FontWeight.Medium,
             color = TextoPrimario
@@ -237,12 +193,11 @@ fun ClienteForm(
         Spacer(modifier = Modifier.height(12.dp))
 
         OutlinedTextField(
-            value = email,
-            onValueChange = { email = it },
-            label = { Text("E-mail") },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+            value = descricao,
+            onValueChange = { descricao = it },
+            label = { Text("Descricao (opcional)") },
             modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
+            maxLines = 3,
             shape = RoundedCornerShape(12.dp),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = VerdeMusgo,
@@ -253,20 +208,36 @@ fun ClienteForm(
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        OutlinedTextField(
-            value = telefone,
-            onValueChange = { telefone = it },
-            label = { Text("Telefone (opcional)") },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-            shape = RoundedCornerShape(12.dp),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = VerdeMusgo,
-                focusedLabelColor = VerdeMusgo,
-                cursorColor = VerdeMusgo
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            OutlinedTextField(
+                value = duracaoMinutos,
+                onValueChange = { duracaoMinutos = it },
+                label = { Text("Duracao (min)") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                modifier = Modifier.weight(1f),
+                singleLine = true,
+                shape = RoundedCornerShape(12.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = VerdeMusgo,
+                    focusedLabelColor = VerdeMusgo,
+                    cursorColor = VerdeMusgo
+                )
             )
-        )
+            OutlinedTextField(
+                value = preco,
+                onValueChange = { preco = it },
+                label = { Text("Preco (R$)") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                modifier = Modifier.weight(1f),
+                singleLine = true,
+                shape = RoundedCornerShape(12.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = VerdeMusgo,
+                    focusedLabelColor = VerdeMusgo,
+                    cursorColor = VerdeMusgo
+                )
+            )
+        }
 
         Spacer(modifier = Modifier.height(8.dp))
 
@@ -281,13 +252,20 @@ fun ClienteForm(
         Spacer(modifier = Modifier.height(24.dp))
 
         Button(
-            onClick = { onSalvar(nome, email, telefone) },
+            onClick = {
+                onSalvar(
+                    nome,
+                    descricao,
+                    duracaoMinutos.toIntOrNull() ?: servico.duracaoMinutos,
+                    preco.toDoubleOrNull() ?: servico.preco
+                )
+            },
             modifier = Modifier
                 .fillMaxWidth()
                 .height(52.dp),
             shape = RoundedCornerShape(12.dp),
             colors = ButtonDefaults.buttonColors(containerColor = VerdeMusgo),
-            enabled = nome.isNotBlank() && email.isNotBlank() && formState !is FormState.Loading
+            enabled = nome.isNotBlank() && formState !is FormState.Loading
         ) {
             if (formState is FormState.Loading) {
                 CircularProgressIndicator(
@@ -303,11 +281,10 @@ fun ClienteForm(
 }
 
 @Composable
-fun ClienteCard(cliente: Cliente, onClick: () -> Unit) {
+fun ServicoCard(servico: Servico, onClick: () -> Unit) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            // clickable torna o card clicável
             .clickable { onClick() },
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = Branco),
@@ -315,46 +292,34 @@ fun ClienteCard(cliente: Cliente, onClick: () -> Unit) {
         border = androidx.compose.foundation.BorderStroke(0.5.dp, Divisor)
     ) {
         Row(
-            modifier = Modifier.padding(16.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Surface(
-                modifier = Modifier.size(44.dp),
-                shape = RoundedCornerShape(22.dp),
-                color = VerdeFundo
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Text(
-                        text = cliente.nome.first().uppercase(),
-                        color = VerdeMusgo,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 18.sp
-                    )
-                }
-            }
-            Spacer(modifier = Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = cliente.nome,
+                    text = servico.nome,
                     fontWeight = FontWeight.Medium,
                     fontSize = 15.sp,
                     color = TextoPrimario
                 )
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
-                    text = cliente.email,
+                    text = "${servico.duracaoMinutos} min • R$ ${"%.2f".format(servico.preco)}",
                     fontSize = 13.sp,
                     color = TextoSecundario
                 )
-                if (!cliente.telefone.isNullOrBlank()) {
+                if (!servico.descricao.isNullOrBlank()) {
+                    Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = cliente.telefone,
-                        fontSize = 13.sp,
+                        text = servico.descricao,
+                        fontSize = 12.sp,
                         color = TextoSecundario
                     )
                 }
             }
-            // Indicador visual de que o card é clicável
             Text("›", fontSize = 20.sp, color = TextoSecundario)
         }
     }

@@ -6,40 +6,26 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.salao.app.ui.theme.*
 import com.salao.app.viewmodel.AgendamentoViewModel
 import com.salao.app.viewmodel.ClienteViewModel
 import com.salao.app.viewmodel.FiltroStatus
+import com.salao.app.viewmodel.ServicoViewModel
+import java.time.LocalDate
 
-// Enum define as abas disponíveis na tela home
-// Cada aba tem um rótulo que aparece na barra inferior
 enum class HomeTab(val label: String) {
+    AGENDAMENTOS("Agendamentos"),
     CLIENTES("Clientes"),
-    AGENDAMENTOS("Agendamentos")
+    SERVICOS("Servicos")
 }
 
-// HomeScreen é a tela principal após o login
-// Recebe o token JWT para repassar aos ViewModels
-// Adicione onLogout como parâmetro
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(token: String, onLogout: () -> Unit) {
 
-    // Estado que controla qual aba está selecionada
-    // Começa na aba de Agendamentos
     var abaSelecionada by remember { mutableStateOf(HomeTab.AGENDAMENTOS) }
-
-    // Cria os ViewModels passando o token
-    // viewModel(factory = ...) permite criar ViewModels com parâmetros
-    val clienteViewModel: ClienteViewModel = viewModel(
-        factory = object : ViewModelProvider.Factory {
-            override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
-                @Suppress("UNCHECKED_CAST")
-                return ClienteViewModel(token) as T
-            }
-        }
-    )
 
     val agendamentoViewModel: AgendamentoViewModel = viewModel(
         factory = object : ViewModelProvider.Factory {
@@ -50,10 +36,27 @@ fun HomeScreen(token: String, onLogout: () -> Unit) {
         }
     )
 
-    // Reseta a data para hoje quando voltar para a aba de agendamentos
+    val clienteViewModel: ClienteViewModel = viewModel(
+        factory = object : ViewModelProvider.Factory {
+            override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
+                @Suppress("UNCHECKED_CAST")
+                return ClienteViewModel(token) as T
+            }
+        }
+    )
+
+    val servicoViewModel: ServicoViewModel = viewModel(
+        factory = object : ViewModelProvider.Factory {
+            override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
+                @Suppress("UNCHECKED_CAST")
+                return ServicoViewModel(token) as T
+            }
+        }
+    )
+
     LaunchedEffect(abaSelecionada) {
         if (abaSelecionada == HomeTab.AGENDAMENTOS) {
-            agendamentoViewModel.selecionarData(java.time.LocalDate.now())
+            agendamentoViewModel.selecionarData(LocalDate.now())
             agendamentoViewModel.selecionarFiltro(FiltroStatus.AGENDADO)
         }
     }
@@ -69,13 +72,16 @@ fun HomeScreen(token: String, onLogout: () -> Unit) {
                             Text(
                                 text = aba.label,
                                 fontSize = 12.sp,
-                                fontWeight = if (abaSelecionada == aba)
-                                    FontWeight.Medium else FontWeight.Normal
+                                fontWeight = if (abaSelecionada == aba) FontWeight.Medium else FontWeight.Normal
                             )
                         },
                         icon = {
                             Text(
-                                text = if (aba == HomeTab.CLIENTES) "👥" else "📅",
+                                text = when (aba) {
+                                    HomeTab.AGENDAMENTOS -> "📅"
+                                    HomeTab.CLIENTES -> "👥"
+                                    HomeTab.SERVICOS -> "✂"
+                                },
                                 fontSize = 20.sp
                             )
                         },
@@ -86,33 +92,26 @@ fun HomeScreen(token: String, onLogout: () -> Unit) {
                         )
                     )
                 }
-                // Botão de logout na barra inferior
-                NavigationBarItem(
-                    selected = false,
-                    onClick = { onLogout() },
-                    label = { Text("Sair", fontSize = 12.sp) },
-                    icon = { Text("🚪", fontSize = 20.sp) },
-                    colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = VerdeMusgo,
-                        selectedTextColor = VerdeMusgo,
-                        indicatorColor = VerdeFundo
-                    )
-                )
             }
         },
         containerColor = VerdeSurface
     ) { paddingValues ->
         when (abaSelecionada) {
-            HomeTab.CLIENTES ->
-                ClienteScreen(
-                    viewModel = clienteViewModel,
-                    modifier = Modifier.padding(paddingValues)
-                )
-            HomeTab.AGENDAMENTOS ->
-                AgendamentoScreen(
-                    viewModel = agendamentoViewModel,
-                    modifier = Modifier.padding(paddingValues)
-                )
+            HomeTab.AGENDAMENTOS -> AgendamentoScreen(
+                viewModel = agendamentoViewModel,
+                modifier = Modifier.padding(paddingValues),
+                onLogout = onLogout
+            )
+            HomeTab.CLIENTES -> ClienteScreen(
+                viewModel = clienteViewModel,
+                modifier = Modifier.padding(paddingValues),
+                onLogout = onLogout
+            )
+            HomeTab.SERVICOS -> ServicoScreen(
+                viewModel = servicoViewModel,
+                modifier = Modifier.padding(paddingValues),
+                onLogout = onLogout
+            )
         }
     }
 }
