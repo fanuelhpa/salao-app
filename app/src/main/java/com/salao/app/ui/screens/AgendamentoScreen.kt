@@ -23,9 +23,12 @@ import com.salao.app.ui.theme.*
 import com.salao.app.viewmodel.AgendamentoViewModel
 import com.salao.app.viewmodel.FiltroStatus
 import com.salao.app.viewmodel.FormState
+import com.salao.app.viewmodel.PagamentoState
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import android.widget.Toast
+import androidx.compose.ui.platform.LocalContext
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterialApi::class)
 @Composable
@@ -42,6 +45,7 @@ fun AgendamentoScreen(
     val carregando by viewModel.carregando.collectAsState()
     val dataSelecionada by viewModel.dataSelecionada.collectAsState()
     val filtroStatus by viewModel.filtroStatus.collectAsState()
+    val agendamentosPagos by viewModel.agendamentosPagos.collectAsState()
 
     var mostrarFormularioCadastro by remember { mutableStateOf(false) }
     var agendamentoParaEditar by remember { mutableStateOf<Agendamento?>(null) }
@@ -62,6 +66,8 @@ fun AgendamentoScreen(
             viewModel.resetFormState()
         }
     }
+
+    val context = LocalContext.current
 
     val dataFormatada = remember(dataSelecionada) {
         val hoje = LocalDate.now()
@@ -97,6 +103,7 @@ fun AgendamentoScreen(
             )
         },
         containerColor = VerdeSurface
+
     ) { paddingValues ->
 
         Box(
@@ -166,6 +173,7 @@ fun AgendamentoScreen(
                         items(agendamentos) { agendamento ->
                             AgendamentoCard(
                                 agendamento = agendamento,
+                                pago = agendamento.id in agendamentosPagos,
                                 onClick = { agendamentoParaEditar = agendamento }
                             )
                         }
@@ -246,23 +254,74 @@ fun AgendamentoScreen(
 
     // Formulário de edição
     agendamentoParaEditar?.let { agendamento ->
-        ModalBottomSheet(
-            onDismissRequest = {
+
+        val pagamentoState by viewModel.pagamentoState.collectAsState()
+        var mostrarFormPagamento by remember { mutableStateOf(false) }
+
+        // Busca o preço do serviço para sugerir no pagamento
+        val precoSugerido = viewModel.servicos.value
+            .find { it.id == agendamento.servicoId }?.preco ?: 0.0
+
+        LaunchedEffect(pagamentoState) {
+            if (pagamentoState is PagamentoState.Sucesso) {
+                mostrarFormPagamento = false
                 agendamentoParaEditar = null
-                viewModel.resetFormState()
-            },
-            containerColor = Branco
-        ) {
-            EdicaoAgendamentoForm(
-                agendamento = agendamento,
-                servicos = servicos,
-                formState = formState,
-                onCancelar = { viewModel.cancelarAgendamento(agendamento.id) },
-                onConcluir = { viewModel.concluirAgendamento(agendamento.id) },
-                onAlterarServico = { servicoId, dataHora ->
-                    viewModel.atualizarAgendamento(agendamento.id, servicoId, dataHora)
-                }
-            )
+                viewModel.resetPagamentoState()
+                Toast.makeText(
+                    context,
+                    "Pagamento registrado com sucesso!",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        }
+
+        if (mostrarFormPagamento) {
+            ModalBottomSheet(
+                onDismissRequest = {
+                    mostrarFormPagamento = false
+                    viewModel.resetPagamentoState()
+                },
+                containerColor = Branco
+            ) {
+                PagamentoForm(
+                    agendamento = agendamento,
+                    precoSugerido = precoSugerido,
+                    pagamentoState = pagamentoState,
+                    onRegistrar = { valor, metodo ->
+                        viewModel.registrarPagamento(agendamento.id, valor, metodo)
+                    },
+                    onDismiss = {
+                        mostrarFormPagamento = false
+                        agendamentoParaEditar = null
+                        viewModel.resetPagamentoState()
+                    }
+                )
+            }
+        } else {
+            ModalBottomSheet(
+                onDismissRequest = {
+                    agendamentoParaEditar = null
+                    viewModel.resetFormState()
+                },
+                containerColor = Branco
+            ) {
+                EdicaoAgendamentoForm(
+                    agendamento = agendamento,
+                    servicos = servicos,
+                    formState = formState,
+                    pagamentoState = pagamentoState,
+                    precoSugerido = precoSugerido,
+                    onCancelar = { viewModel.cancelarAgendamento(agendamento.id) },
+                    onConcluir = { viewModel.concluirAgendamento(agendamento.id) },
+                    onAlterarServico = { servicoId, dataHora ->
+                        viewModel.atualizarAgendamento(agendamento.id, servicoId, dataHora)
+                    },
+                    onRegistrarPagamento = { valor, metodo ->
+                        viewModel.registrarPagamento(agendamento.id, valor, metodo)
+                    },
+                    onAbrirPagamento = { mostrarFormPagamento = true } // abre o form
+                )
+            }
         }
     }
 }
@@ -273,10 +332,14 @@ fun EdicaoAgendamentoForm(
     agendamento: Agendamento,
     servicos: List<Servico>,
     formState: FormState,
+    pagamentoState: PagamentoState,
+    precoSugerido: Double,
+    onAbrirPagamento: () -> Unit,
     onCancelar: () -> Unit,
     onConcluir: () -> Unit,
-    onAlterarServico: (Long, String) -> Unit
-) {
+    onAlterarServico: (Long, String) -> Unit,
+    onRegistrarPagamento: (Double, String) -> Unit
+){
     var servicoSelecionado by remember {
         mutableStateOf(servicos.find { it.id == agendamento.servicoId })
     }
@@ -406,14 +469,34 @@ fun EdicaoAgendamentoForm(
             ) { Text("Cancelar agendamento", fontSize = 16.sp, fontWeight = FontWeight.Medium) }
 
         } else {
-            Surface(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp),
-                color = if (agendamento.status == "CONCLUIDO") TagConcluidoFundo else TagCanceladoFundo) {
-                Text(
-                    text = "Este agendamento ja foi ${agendamento.status.lowercase()}.",
-                    modifier = Modifier.padding(16.dp),
-                    color = if (agendamento.status == "CONCLUIDO") TagConcluidoTexto else TagCanceladoTexto,
-                    fontSize = 14.sp
-                )
+            if (agendamento.status == "CONCLUIDO") {
+                // Botão de registrar pagamento para agendamentos concluídos
+                Button(
+                    onClick = { onAbrirPagamento() },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(52.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = TagConcluidoFundo,
+                        contentColor = TagConcluidoTexto
+                    )
+                ) {
+                    Text("Registrar Pagamento", fontSize = 16.sp, fontWeight = FontWeight.Medium)
+                }
+            } else {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    color = TagCanceladoFundo
+                ) {
+                    Text(
+                        text = "Este agendamento foi cancelado.",
+                        modifier = Modifier.padding(16.dp),
+                        color = TagCanceladoTexto,
+                        fontSize = 14.sp
+                    )
+                }
             }
         }
 
@@ -635,7 +718,7 @@ fun CadastroAgendamentoForm(
 }
 
 @Composable
-fun AgendamentoCard(agendamento: Agendamento, onClick: () -> Unit) {
+fun AgendamentoCard(agendamento: Agendamento, pago: Boolean = false, onClick: () -> Unit) {
     val (tagFundo, tagTexto) = when (agendamento.status) {
         "AGENDADO"  -> TagAgendadoFundo  to TagAgendadoTexto
         "CONCLUIDO" -> TagConcluidoFundo to TagConcluidoTexto
@@ -644,28 +727,69 @@ fun AgendamentoCard(agendamento: Agendamento, onClick: () -> Unit) {
     }
 
     Card(
-        modifier = Modifier.fillMaxWidth().clickable { onClick() },
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() },
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = Branco),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         border = androidx.compose.foundation.BorderStroke(0.5.dp, Divisor)
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.Top
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text(text = agendamento.clienteNome, fontWeight = FontWeight.Medium, fontSize = 15.sp, color = TextoPrimario)
+                Text(
+                    text = agendamento.clienteNome,
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 15.sp,
+                    color = TextoPrimario
+                )
                 Spacer(modifier = Modifier.height(2.dp))
-                Text(text = agendamento.servicoNome, fontSize = 13.sp, color = TextoSecundario)
+                Text(
+                    text = agendamento.servicoNome,
+                    fontSize = 13.sp,
+                    color = TextoSecundario
+                )
                 Spacer(modifier = Modifier.height(2.dp))
-                Text(text = formatarDataHora(agendamento.dataHora), fontSize = 13.sp, color = TextoSecundario)
+                Text(
+                    text = formatarDataHora(agendamento.dataHora),
+                    fontSize = 13.sp,
+                    color = TextoSecundario
+                )
             }
             Column(horizontalAlignment = Alignment.End) {
-                Surface(shape = RoundedCornerShape(20.dp), color = tagFundo) {
-                    Text(text = agendamento.status, fontSize = 11.sp, fontWeight = FontWeight.Medium, color = tagTexto,
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp))
+                Surface(
+                    shape = RoundedCornerShape(20.dp),
+                    color = tagFundo
+                ) {
+                    Text(
+                        text = agendamento.status,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = tagTexto,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                    )
+                }
+                // Tag de PAGO aparece abaixo do status quando concluído e pago
+                if (pago && agendamento.status == "CONCLUIDO") {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Surface(
+                        shape = RoundedCornerShape(20.dp),
+                        color = VerdeFundo
+                    ) {
+                        Text(
+                            text = "PAGO",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = VerdeMusgo,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                        )
+                    }
                 }
                 Spacer(modifier = Modifier.height(4.dp))
                 Text("›", fontSize = 20.sp, color = TextoSecundario)

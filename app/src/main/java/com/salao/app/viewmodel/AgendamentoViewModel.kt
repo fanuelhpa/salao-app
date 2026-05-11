@@ -5,9 +5,11 @@ import androidx.lifecycle.viewModelScope
 import com.salao.app.data.model.Agendamento
 import com.salao.app.data.model.AgendamentoRequest
 import com.salao.app.data.model.Cliente
+import com.salao.app.data.model.PagamentoRequest
 import com.salao.app.data.model.Servico
 import com.salao.app.data.repository.AgendamentoRepository
 import com.salao.app.data.repository.ClienteRepository
+import com.salao.app.data.repository.PagamentoRepository
 import com.salao.app.data.repository.ServicoRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -26,6 +28,8 @@ class AgendamentoViewModel(private val token: String) : ViewModel() {
     private val clienteRepository = ClienteRepository(token)
     private val servicoRepository = ServicoRepository(token)
 
+    private val pagamentoRepository = PagamentoRepository(token)
+
     // Lista completa vinda da API
     private val _todosAgendamentos = MutableStateFlow<List<Agendamento>>(emptyList())
 
@@ -43,6 +47,10 @@ class AgendamentoViewModel(private val token: String) : ViewModel() {
 
     private val _erro = MutableStateFlow<String?>(null)
     val erro: StateFlow<String?> = _erro
+
+    // Estado do pagamento
+    private val _pagamentoState = MutableStateFlow<PagamentoState>(PagamentoState.Idle)
+    val pagamentoState: StateFlow<PagamentoState> = _pagamentoState
 
     // Agendamentos filtrados por data e status — combina os três flows
     val agendamentosFiltrados: StateFlow<List<Agendamento>> = combine(
@@ -70,11 +78,15 @@ class AgendamentoViewModel(private val token: String) : ViewModel() {
     private val _servicos = MutableStateFlow<List<Servico>>(emptyList())
     val servicos: StateFlow<List<Servico>> = _servicos
 
+    private val _agendamentosPagos = MutableStateFlow<Set<Long>>(emptySet())
+    val agendamentosPagos: StateFlow<Set<Long>> = _agendamentosPagos
+
     init {
         carregarAgendamentos()
         carregarClientesEServicos()
     }
 
+    // Atualiza o carregarAgendamentos para buscar pagamentos junto
     fun carregarAgendamentos() {
         _carregando.value = true
         _erro.value = null
@@ -86,6 +98,15 @@ class AgendamentoViewModel(private val token: String) : ViewModel() {
                 _erro.value = "Erro ao carregar agendamentos."
             }
             _carregando.value = false
+        }
+        // Carrega os pagamentos em paralelo
+        viewModelScope.launch {
+            val result = pagamentoRepository.listarPagamentos()
+            if (result.isSuccess) {
+                _agendamentosPagos.value = result.getOrNull()!!
+                    .map { it.agendamentoId }
+                    .toSet()
+            }
         }
     }
 
@@ -179,6 +200,28 @@ class AgendamentoViewModel(private val token: String) : ViewModel() {
         }
     }
 
+    fun registrarPagamento(agendamentoId: Long, valor: Double, metodoPagamento: String) {
+        _pagamentoState.value = PagamentoState.Loading
+        viewModelScope.launch {
+            val result = pagamentoRepository.registrarPagamento(
+                PagamentoRequest(agendamentoId, valor, metodoPagamento)
+            )
+            if (result.isSuccess) {
+                _pagamentoState.value = PagamentoState.Sucesso
+                // Atualiza a lista de agendamentos pagos
+                _agendamentosPagos.value = _agendamentosPagos.value + agendamentoId
+            } else {
+                _pagamentoState.value = PagamentoState.Erro(
+                    result.exceptionOrNull()?.message ?: "Erro ao registrar pagamento."
+                )
+            }
+        }
+    }
+
+    fun resetPagamentoState() {
+        _pagamentoState.value = PagamentoState.Idle
+    }
+
     fun resetFormState() {
         _formState.value = FormState.Idle
     }
@@ -188,4 +231,11 @@ sealed class AgendamentoUiState {
     object Loading : AgendamentoUiState()
     data class Success(val agendamentos: List<Agendamento>) : AgendamentoUiState()
     data class Error(val message: String) : AgendamentoUiState()
+}
+
+sealed class PagamentoState {
+    object Idle : PagamentoState()
+    object Loading : PagamentoState()
+    object Sucesso : PagamentoState()
+    data class Erro(val message: String) : PagamentoState()
 }

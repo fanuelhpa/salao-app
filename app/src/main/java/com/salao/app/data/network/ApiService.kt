@@ -6,6 +6,8 @@ import com.salao.app.data.model.Cliente
 import com.salao.app.data.model.ClienteRequest
 import com.salao.app.data.model.LoginRequest
 import com.salao.app.data.model.LoginResponse
+import com.salao.app.data.model.Pagamento
+import com.salao.app.data.model.PagamentoRequest
 import com.salao.app.data.model.Servico
 import com.salao.app.data.model.ServicoRequest
 import retrofit2.http.*
@@ -50,4 +52,13 @@ interface ApiService {
 
     @POST("servicos")
     suspend fun criarServico(@Body request: ServicoRequest): Servico
+
+    @POST("pagamentos")
+    suspend fun registrarPagamento(@Body request: PagamentoRequest): Pagamento
+
+    @GET("pagamentos/agendamento/{agendamentoId}")
+    suspend fun buscarPagamentoPorAgendamento(@Path("agendamentoId") agendamentoId: Long): Pagamento
+
+    @GET("pagamentos")
+    suspend fun listarPagamentos(): List<Pagamento>
 }
