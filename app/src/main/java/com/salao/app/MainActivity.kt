@@ -13,6 +13,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.salao.app.data.SessionManager
 import com.salao.app.data.TokenState
 import com.salao.app.ui.screens.HomeScreen
 import com.salao.app.ui.screens.LoginScreen
@@ -24,6 +25,7 @@ import com.salao.app.viewmodel.AuthViewModel
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        SessionManager.init(this)
         enableEdgeToEdge()
         setContent {
             SalaoAppTheme {
@@ -37,7 +39,6 @@ class MainActivity : ComponentActivity() {
 fun SalaoApp() {
     val authViewModel: AuthViewModel = viewModel()
 
-    // Carregando como estado inicial — antes do DataStore responder
     val tokenState by authViewModel.tokenState
         .collectAsStateWithLifecycle(initialValue = TokenState.Carregando)
 

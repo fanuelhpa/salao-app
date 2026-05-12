@@ -5,12 +5,13 @@ import androidx.lifecycle.viewModelScope
 import com.salao.app.data.model.Agendamento
 import com.salao.app.data.model.AgendamentoRequest
 import com.salao.app.data.model.Cliente
-import com.salao.app.data.model.PagamentoRequest
 import com.salao.app.data.model.Servico
 import com.salao.app.data.repository.AgendamentoRepository
 import com.salao.app.data.repository.ClienteRepository
 import com.salao.app.data.repository.PagamentoRepository
 import com.salao.app.data.repository.ServicoRepository
+import com.salao.app.data.model.PagamentoRequest
+import com.salao.app.data.network.UnauthorizedException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -22,37 +23,28 @@ import java.time.format.DateTimeFormatter
 
 enum class FiltroStatus { AGENDADO, CONCLUIDO, CANCELADO }
 
-class AgendamentoViewModel(private val token: String) : ViewModel() {
+class AgendamentoViewModel(
+    private val token: String
+) : ViewModel() {
 
     private val agendamentoRepository = AgendamentoRepository(token)
     private val clienteRepository = ClienteRepository(token)
     private val servicoRepository = ServicoRepository(token)
-
     private val pagamentoRepository = PagamentoRepository(token)
 
-    // Lista completa vinda da API
     private val _todosAgendamentos = MutableStateFlow<List<Agendamento>>(emptyList())
-
-    // Data selecionada — começa com hoje
     private val _dataSelecionada = MutableStateFlow(LocalDate.now())
     val dataSelecionada: StateFlow<LocalDate> = _dataSelecionada
 
-    // Filtro de status selecionado — começa com AGENDADO
     private val _filtroStatus = MutableStateFlow(FiltroStatus.AGENDADO)
     val filtroStatus: StateFlow<FiltroStatus> = _filtroStatus
 
-    // Estado de carregamento e erro
     private val _carregando = MutableStateFlow(true)
     val carregando: StateFlow<Boolean> = _carregando
 
     private val _erro = MutableStateFlow<String?>(null)
     val erro: StateFlow<String?> = _erro
 
-    // Estado do pagamento
-    private val _pagamentoState = MutableStateFlow<PagamentoState>(PagamentoState.Idle)
-    val pagamentoState: StateFlow<PagamentoState> = _pagamentoState
-
-    // Agendamentos filtrados por data e status — combina os três flows
     val agendamentosFiltrados: StateFlow<List<Agendamento>> = combine(
         _todosAgendamentos,
         _dataSelecionada,
@@ -81,12 +73,14 @@ class AgendamentoViewModel(private val token: String) : ViewModel() {
     private val _agendamentosPagos = MutableStateFlow<Set<Long>>(emptySet())
     val agendamentosPagos: StateFlow<Set<Long>> = _agendamentosPagos
 
+    private val _pagamentoState = MutableStateFlow<PagamentoState>(PagamentoState.Idle)
+    val pagamentoState: StateFlow<PagamentoState> = _pagamentoState
+
     init {
         carregarAgendamentos()
         carregarClientesEServicos()
     }
 
-    // Atualiza o carregarAgendamentos para buscar pagamentos junto
     fun carregarAgendamentos() {
         _carregando.value = true
         _erro.value = null
@@ -99,7 +93,6 @@ class AgendamentoViewModel(private val token: String) : ViewModel() {
             }
             _carregando.value = false
         }
-        // Carrega os pagamentos em paralelo
         viewModelScope.launch {
             val result = pagamentoRepository.listarPagamentos()
             if (result.isSuccess) {
@@ -110,13 +103,8 @@ class AgendamentoViewModel(private val token: String) : ViewModel() {
         }
     }
 
-    fun selecionarData(data: LocalDate) {
-        _dataSelecionada.value = data
-    }
-
-    fun selecionarFiltro(filtro: FiltroStatus) {
-        _filtroStatus.value = filtro
-    }
+    fun selecionarData(data: LocalDate) { _dataSelecionada.value = data }
+    fun selecionarFiltro(filtro: FiltroStatus) { _filtroStatus.value = filtro }
 
     private fun carregarClientesEServicos() {
         viewModelScope.launch {
@@ -208,7 +196,6 @@ class AgendamentoViewModel(private val token: String) : ViewModel() {
             )
             if (result.isSuccess) {
                 _pagamentoState.value = PagamentoState.Sucesso
-                // Atualiza a lista de agendamentos pagos
                 _agendamentosPagos.value = _agendamentosPagos.value + agendamentoId
             } else {
                 _pagamentoState.value = PagamentoState.Erro(
@@ -218,13 +205,8 @@ class AgendamentoViewModel(private val token: String) : ViewModel() {
         }
     }
 
-    fun resetPagamentoState() {
-        _pagamentoState.value = PagamentoState.Idle
-    }
-
-    fun resetFormState() {
-        _formState.value = FormState.Idle
-    }
+    fun resetFormState() { _formState.value = FormState.Idle }
+    fun resetPagamentoState() { _pagamentoState.value = PagamentoState.Idle }
 }
 
 sealed class AgendamentoUiState {

@@ -4,6 +4,7 @@ import com.salao.app.data.model.Agendamento
 import com.salao.app.data.model.AgendamentoRequest
 import com.salao.app.data.network.RetrofitClient
 import com.salao.app.data.network.extrairMensagemErro
+import com.salao.app.data.network.tratarErro
 
 class AgendamentoRepository(private val token: String) {
 
@@ -12,7 +13,7 @@ class AgendamentoRepository(private val token: String) {
             val response = RetrofitClient.comToken(token).listarAgendamentos()
             Result.success(response)
         } catch (e: Exception) {
-            Result.failure(e)
+            tratarErro(e, "Erro ao carregar agendamentos.")
         }
     }
 
@@ -21,9 +22,7 @@ class AgendamentoRepository(private val token: String) {
             val response = RetrofitClient.comToken(token).criarAgendamento(request)
             Result.success(response)
         } catch (e: Exception) {
-            // Extrai a mensagem real do erro da API
-            val mensagem = extrairMensagemErro(e, "Erro ao criar agendamento.")
-            Result.failure(Exception(mensagem))
+            tratarErro(e, "Erro ao carregar agendamentos.")
         }
     }
 
@@ -32,8 +31,7 @@ class AgendamentoRepository(private val token: String) {
             val response = RetrofitClient.comToken(token).atualizarAgendamento(id, request)
             Result.success(response)
         } catch (e: Exception) {
-            val mensagem = extrairMensagemErro(e, "Erro ao atualizar agendamento.")
-            Result.failure(Exception(mensagem))
+            tratarErro(e, "Erro ao carregar agendamentos.")
         }
     }
 
@@ -42,8 +40,7 @@ class AgendamentoRepository(private val token: String) {
             val response = RetrofitClient.comToken(token).cancelarAgendamento(id)
             Result.success(response)
         } catch (e: Exception) {
-            val mensagem = extrairMensagemErro(e, "Erro ao cancelar agendamento.")
-            Result.failure(Exception(mensagem))
+            tratarErro(e, "Erro ao carregar agendamentos.")
         }
     }
 
@@ -52,8 +49,7 @@ class AgendamentoRepository(private val token: String) {
             val response = RetrofitClient.comToken(token).concluirAgendamento(id)
             Result.success(response)
         } catch (e: Exception) {
-            val mensagem = extrairMensagemErro(e, "Erro ao concluir agendamento.")
-            Result.failure(Exception(mensagem))
+            tratarErro(e, "Erro ao carregar agendamentos.")
         }
     }
 }

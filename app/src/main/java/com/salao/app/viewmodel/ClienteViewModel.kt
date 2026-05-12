@@ -4,15 +4,19 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.salao.app.data.model.Cliente
 import com.salao.app.data.model.ClienteRequest
+import com.salao.app.data.network.UnauthorizedException
+import com.salao.app.data.repository.AgendamentoRepository
 import com.salao.app.data.repository.ClienteRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 
-class ClienteViewModel(private val token: String) : ViewModel() {
+class ClienteViewModel(
+    private val token: String
+) : ViewModel() {
 
     private val repository = ClienteRepository(token)
-
+    private val agendamentoRepository = AgendamentoRepository(token)
     private val _uiState = MutableStateFlow<ClienteUiState>(ClienteUiState.Loading)
     val uiState: StateFlow<ClienteUiState> = _uiState
 
@@ -28,12 +32,12 @@ class ClienteViewModel(private val token: String) : ViewModel() {
         _uiState.value = ClienteUiState.Loading
         viewModelScope.launch {
             val result = repository.listarClientes()
-            _uiState.value = if (result.isSuccess) {
-                ClienteUiState.Success(
-                    result.getOrNull()!!.sortedBy { it.nome } // ordena por nome alfabeticamente
+            if (result.isSuccess) {
+                _uiState.value = ClienteUiState.Success(
+                    result.getOrNull()!!.sortedBy { it.nome }
                 )
             } else {
-                ClienteUiState.Error("Erro ao carregar clientes.")
+                _uiState.value = ClienteUiState.Error("Erro ao carregar clientes.")
             }
         }
     }
@@ -46,9 +50,11 @@ class ClienteViewModel(private val token: String) : ViewModel() {
             )
             if (result.isSuccess) {
                 _formState.value = FormState.Sucesso
-                carregarClientes() // atualiza a lista após criar
+                carregarClientes()
             } else {
-                _formState.value = FormState.Erro("Erro ao cadastrar cliente.")
+                _formState.value = FormState.Erro(
+                    result.exceptionOrNull()?.message ?: "Erro ao criar cliente."
+                )
             }
         }
     }
@@ -57,14 +63,15 @@ class ClienteViewModel(private val token: String) : ViewModel() {
         _formState.value = FormState.Loading
         viewModelScope.launch {
             val result = repository.atualizarCliente(
-                id,
-                ClienteRequest(nome, email, telefone.ifBlank { null })
+                id, ClienteRequest(nome, email, telefone.ifBlank { null })
             )
             if (result.isSuccess) {
                 _formState.value = FormState.Sucesso
                 carregarClientes()
             } else {
-                _formState.value = FormState.Erro("Erro ao atualizar cliente.")
+                _formState.value = FormState.Erro(
+                    result.exceptionOrNull()?.message ?: "Erro ao atualizar cliente."
+                )
             }
         }
     }

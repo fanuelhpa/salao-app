@@ -4,6 +4,7 @@ import com.salao.app.data.model.Pagamento
 import com.salao.app.data.model.PagamentoRequest
 import com.salao.app.data.network.RetrofitClient
 import com.salao.app.data.network.extrairMensagemErro
+import com.salao.app.data.network.tratarErro
 
 class PagamentoRepository(private val token: String) {
 
@@ -12,8 +13,7 @@ class PagamentoRepository(private val token: String) {
             val response = RetrofitClient.comToken(token).registrarPagamento(request)
             Result.success(response)
         } catch (e: Exception) {
-            val mensagem = extrairMensagemErro(e, "Erro ao registrar pagamento.")
-            Result.failure(Exception(mensagem))
+            tratarErro(e, "Erro ao carregar agendamentos.")
         }
     }
 
@@ -22,7 +22,7 @@ class PagamentoRepository(private val token: String) {
             val response = RetrofitClient.comToken(token).buscarPagamentoPorAgendamento(agendamentoId)
             Result.success(response)
         } catch (e: Exception) {
-            Result.failure(e)
+            tratarErro(e, "Erro ao carregar agendamentos.")
         }
     }
 
@@ -31,7 +31,16 @@ class PagamentoRepository(private val token: String) {
             val response = RetrofitClient.comToken(token).listarPagamentos()
             Result.success(response)
         } catch (e: Exception) {
-            Result.failure(e)
+            tratarErro(e, "Erro ao carregar agendamentos.")
+        }
+    }
+
+    suspend fun buscarPorPeriodo(inicio: String, fim: String): Result<List<Pagamento>> {
+        return try {
+            val response = RetrofitClient.comToken(token).buscarPagamentosPorPeriodo(inicio, fim)
+            Result.success(response)
+        } catch (e: Exception) {
+            tratarErro(e, "Erro ao carregar agendamentos.")
         }
     }
 }

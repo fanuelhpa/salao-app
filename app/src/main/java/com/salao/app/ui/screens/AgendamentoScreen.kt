@@ -76,7 +76,7 @@ fun AgendamentoScreen(
             hoje.plusDays(1) -> "Amanha"
             hoje.minusDays(1) -> "Ontem"
             else -> dataSelecionada.format(
-                DateTimeFormatter.ofPattern("dd 'de' MMMM", Locale("pt", "BR"))
+                DateTimeFormatter.ofPattern("dd 'de' MMMM 'de' yyyy", Locale("pt", "BR"))
             )
         }
     }
