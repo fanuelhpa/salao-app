@@ -87,12 +87,20 @@ fun AgendamentoScreen(
                 title = {
                     Column {
                         Text("Agendamentos", color = Branco, fontWeight = FontWeight.Medium)
-                        Text(dataFormatada, color = Branco.copy(alpha = 0.7f), fontSize = 12.sp)
+                        Text(
+                            text = if (filtroStatus == FiltroStatus.PENDENTES) "Dias anteriores"
+                            else dataFormatada,
+                            color = Branco.copy(alpha = 0.7f),
+                            fontSize = 12.sp
+                        )
                     }
                 },
                 actions = {
-                    IconButton(onClick = { mostrarDatePickerFiltro = true }) {
-                        Text("📅", fontSize = 18.sp)
+                    // Só mostra o calendário se NÃO estiver no filtro de pendentes
+                    if (filtroStatus != FiltroStatus.PENDENTES) {
+                        IconButton(onClick = { mostrarDatePickerFiltro = true }) {
+                            Text("📅", fontSize = 18.sp)
+                        }
                     }
                     IconButton(onClick = { mostrarFormularioCadastro = true }) {
                         Text("+", fontSize = 24.sp, color = Branco, fontWeight = FontWeight.Light)
@@ -117,12 +125,13 @@ fun AgendamentoScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 10.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     FiltroStatus.entries.forEach { filtro ->
                         val selecionado = filtroStatus == filtro
                         FilterChip(
+                            modifier = Modifier.weight(1f),
                             selected = selecionado,
                             onClick = { viewModel.selecionarFiltro(filtro) },
                             label = {
@@ -131,8 +140,12 @@ fun AgendamentoScreen(
                                         FiltroStatus.AGENDADO -> "Agendados"
                                         FiltroStatus.CONCLUIDO -> "Concluidos"
                                         FiltroStatus.CANCELADO -> "Cancelados"
+                                        FiltroStatus.PENDENTES -> "Pendentes"
                                     },
-                                    fontSize = 12.sp
+                                    fontSize = 11.sp,
+                                    maxLines = 1,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
                                 )
                             },
                             colors = FilterChipDefaults.filterChipColors(

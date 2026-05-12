@@ -25,7 +25,7 @@ fun PagamentoForm(
     onDismiss: () -> Unit
 ) {
     // Começa com o preço do serviço como sugestão
-    var valor by remember { mutableStateOf(precoSugerido.toString()) }
+    var valor by remember { mutableStateOf("%.2f".format(precoSugerido).replace(".", ",")) }
     var metodoPagamento by remember { mutableStateOf("PIX") }
     var metodoDropdownAberto by remember { mutableStateOf(false) }
 
@@ -83,7 +83,7 @@ fun PagamentoForm(
             // Mostra o preço sugerido como dica abaixo do campo
             supportingText = {
                 Text(
-                    "Preco do servico: R$ ${"%.2f".format(precoSugerido)}",
+                    "Preco do servico: R$ ${"%.2f".format(precoSugerido).replace(".", ",")}",
                     fontSize = 12.sp,
                     color = TextoSecundario
                 )
@@ -144,8 +144,10 @@ fun PagamentoForm(
 
         Button(
             onClick = {
+                // Substitui vírgula por ponto antes de converter para Double
+                val valorFormatado = valor.replace(",", ".")
                 onRegistrar(
-                    valor.toDoubleOrNull() ?: precoSugerido,
+                    valorFormatado.toDoubleOrNull() ?: precoSugerido,
                     metodoPagamento
                 )
             },

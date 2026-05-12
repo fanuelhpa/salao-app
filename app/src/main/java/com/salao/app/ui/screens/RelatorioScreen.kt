@@ -80,23 +80,30 @@ fun RelatorioScreen(
             // Chips de tipo de relatório
             item {
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     TipoRelatorio.entries.forEach { tipo ->
                         val selecionado = tipoSelecionado == tipo
                         FilterChip(
+                            modifier = Modifier.weight(1f),
                             selected = selecionado,
                             onClick = { viewModel.selecionarTipo(tipo) },
                             label = {
                                 Text(
                                     text = when (tipo) {
                                         TipoRelatorio.DIA -> "Dia"
+                                        TipoRelatorio.SEMANA -> "Semana"
                                         TipoRelatorio.MES -> "Mes"
                                         TipoRelatorio.PERIODO -> "Periodo"
                                         TipoRelatorio.ANO -> "Ano"
                                     },
-                                    fontSize = 12.sp
+                                    fontSize = 9.sp,
+                                    maxLines = 1,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
                                 )
                             },
                             colors = FilterChipDefaults.filterChipColors(
@@ -115,7 +122,6 @@ fun RelatorioScreen(
                     }
                 }
             }
-
             // Filtros por tipo
             item {
                 Card(
@@ -152,6 +158,44 @@ fun RelatorioScreen(
                                 Spacer(modifier = Modifier.height(12.dp))
                                 Button(
                                     onClick = { viewModel.buscarPorDia(dataSelecionada) },
+                                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = VerdeMusgo)
+                                ) { Text("Gerar Relatorio") }
+                            }
+
+                            TipoRelatorio.SEMANA -> {
+                                val inicioSemana = dataSelecionada.with(java.time.DayOfWeek.MONDAY)
+                                val fimSemana = dataSelecionada.with(java.time.DayOfWeek.SUNDAY)
+
+                                OutlinedButton(
+                                    onClick = { mostrarDatePickerDia = true },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = VerdeMusgo),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, VerdeMusgo)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = "Selecione um dia da semana",
+                                            color = TextoPrimario
+                                        )
+                                        Text("📅", fontSize = 18.sp)
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = "Semana: ${inicioSemana.format(DateTimeFormatter.ofPattern("dd/MM"))} a ${fimSemana.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))}",
+                                    fontSize = 13.sp,
+                                    color = TextoSecundario
+                                )
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Button(
+                                    onClick = { viewModel.buscarPorSemana(dataSelecionada) },
                                     modifier = Modifier.fillMaxWidth().height(48.dp),
                                     shape = RoundedCornerShape(12.dp),
                                     colors = ButtonDefaults.buttonColors(containerColor = VerdeMusgo)

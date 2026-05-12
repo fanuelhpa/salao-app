@@ -10,7 +10,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 
-enum class TipoRelatorio { DIA, MES, PERIODO, ANO }
+enum class TipoRelatorio { DIA, SEMANA, MES, PERIODO, ANO }
 
 class RelatorioViewModel(
     private val token: String
@@ -31,6 +31,14 @@ class RelatorioViewModel(
 
     fun buscarPorDia(data: LocalDate) {
         buscar(data.atStartOfDay().toString(), data.atTime(23, 59, 59).toString())
+    }
+
+    fun buscarPorSemana(data: LocalDate) {
+        // Encontra a segunda-feira da semana
+        val inicio = data.with(java.time.DayOfWeek.MONDAY).atStartOfDay()
+        // E o domingo
+        val fim = data.with(java.time.DayOfWeek.SUNDAY).atTime(23, 59, 59)
+        buscar(inicio.toString(), fim.toString())
     }
 
     fun buscarPorMes(ano: Int, mes: Int) {

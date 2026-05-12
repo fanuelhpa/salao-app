@@ -21,7 +21,7 @@ import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
-enum class FiltroStatus { AGENDADO, CONCLUIDO, CANCELADO }
+enum class FiltroStatus { AGENDADO, CONCLUIDO, CANCELADO, PENDENTES }
 
 class AgendamentoViewModel(
     private val token: String
@@ -33,6 +33,10 @@ class AgendamentoViewModel(
     private val pagamentoRepository = PagamentoRepository(token)
 
     private val _todosAgendamentos = MutableStateFlow<List<Agendamento>>(emptyList())
+
+    private val _agendamentosPagos = MutableStateFlow<Set<Long>>(emptySet())
+    val agendamentosPagos: StateFlow<Set<Long>> = _agendamentosPagos
+
     private val _dataSelecionada = MutableStateFlow(LocalDate.now())
     val dataSelecionada: StateFlow<LocalDate> = _dataSelecionada
 
@@ -47,13 +51,28 @@ class AgendamentoViewModel(
 
     val agendamentosFiltrados: StateFlow<List<Agendamento>> = combine(
         _todosAgendamentos,
+        _agendamentosPagos,
         _dataSelecionada,
         _filtroStatus
-    ) { agendamentos, data, filtro ->
-        val dataFormatada = data.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
-        agendamentos.filter { agendamento ->
-            agendamento.dataHora.startsWith(dataFormatada) &&
-                    agendamento.status == filtro.name
+    ) { agendamentos, pagos, data, filtro ->
+        if (filtro == FiltroStatus.PENDENTES) {
+            val hoje = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
+            agendamentos.filter { agendamento ->
+                val dataAgendamento = agendamento.dataHora.substring(0, 10)
+                // Agendamentos no passado que precisam de acao:
+                // - Status AGENDADO (precisa concluir ou cancelar)
+                // - Status CONCLUIDO sem pagamento (precisa registrar pagamento)
+                dataAgendamento < hoje && (
+                        agendamento.status == "AGENDADO" ||
+                                (agendamento.status == "CONCLUIDO" && agendamento.id !in pagos)
+                        )
+            }
+        } else {
+            val dataFormatada = data.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
+            agendamentos.filter { agendamento ->
+                agendamento.dataHora.startsWith(dataFormatada) &&
+                        agendamento.status == filtro.name
+            }
         }
     }.stateIn(
         scope = viewModelScope,
@@ -69,9 +88,6 @@ class AgendamentoViewModel(
 
     private val _servicos = MutableStateFlow<List<Servico>>(emptyList())
     val servicos: StateFlow<List<Servico>> = _servicos
-
-    private val _agendamentosPagos = MutableStateFlow<Set<Long>>(emptySet())
-    val agendamentosPagos: StateFlow<Set<Long>> = _agendamentosPagos
 
     private val _pagamentoState = MutableStateFlow<PagamentoState>(PagamentoState.Idle)
     val pagamentoState: StateFlow<PagamentoState> = _pagamentoState
