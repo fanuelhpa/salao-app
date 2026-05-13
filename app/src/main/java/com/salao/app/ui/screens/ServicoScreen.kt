@@ -197,7 +197,7 @@ fun ServicoForm(
     var nome by remember { mutableStateOf(nomeInicial) }
     var descricao by remember { mutableStateOf(descricaoInicial) }
     var duracaoMinutos by remember { mutableStateOf(duracaoInicial) }
-    var preco by remember { mutableStateOf(precoInicial) }
+    var preco by remember { mutableStateOf(precoInicial.replace(".", ",")) }
 
     Column(
         modifier = Modifier
@@ -295,7 +295,7 @@ fun ServicoForm(
                     nome,
                     descricao,
                     duracaoMinutos.toIntOrNull() ?: 0,
-                    preco.toDoubleOrNull() ?: 0.0
+                    preco.replace(",", ".").toDoubleOrNull() ?: 0.0
                 )
             },
             modifier = Modifier
