@@ -34,8 +34,8 @@ class AgendamentoViewModel(
 
     private val _todosAgendamentos = MutableStateFlow<List<Agendamento>>(emptyList())
 
-    private val _agendamentosPagos = MutableStateFlow<Set<Long>>(emptySet())
-    val agendamentosPagos: StateFlow<Set<Long>> = _agendamentosPagos
+    private val _agendamentosPagos = MutableStateFlow<Map<Long, Double>>(emptyMap())
+    val agendamentosPagos: StateFlow<Map<Long, Double>> = _agendamentosPagos
 
     private val _dataSelecionada = MutableStateFlow(LocalDate.now())
     val dataSelecionada: StateFlow<LocalDate> = _dataSelecionada
@@ -62,7 +62,7 @@ class AgendamentoViewModel(
                     val dataAgendamento = agendamento.dataHora.substring(0, 10)
                     dataAgendamento < hoje && (
                             agendamento.status == "AGENDADO" ||
-                                    (agendamento.status == "CONCLUIDO" && agendamento.id !in pagos)
+                                    (agendamento.status == "CONCLUIDO" && agendamento.id !in pagos.keys)
                             )
                 }
             }
@@ -121,8 +121,7 @@ class AgendamentoViewModel(
             val result = pagamentoRepository.listarPagamentos()
             if (result.isSuccess) {
                 _agendamentosPagos.value = result.getOrNull()!!
-                    .map { it.agendamentoId }
-                    .toSet()
+                    .associate { it.agendamentoId to it.valor }
             }
         }
     }
@@ -220,7 +219,7 @@ class AgendamentoViewModel(
             )
             if (result.isSuccess) {
                 _pagamentoState.value = PagamentoState.Sucesso
-                _agendamentosPagos.value = _agendamentosPagos.value + agendamentoId
+                _agendamentosPagos.value = _agendamentosPagos.value + (agendamentoId to valor)
             } else {
                 _pagamentoState.value = PagamentoState.Erro(
                     result.exceptionOrNull()?.message ?: "Erro ao registrar pagamento."

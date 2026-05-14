@@ -24,7 +24,7 @@ import androidx.compose.foundation.layout.offset
 @Composable
 fun AgendaTimeline(
     agendamentos: List<Agendamento>,
-    pagos: Set<Long>,
+    pagos: Map<Long, Double>,
     onAgendamentoClick: (Agendamento) -> Unit
 ) {
     // Aumentei para 4dp por minuto — 120dp por 30 minutos
@@ -85,7 +85,8 @@ fun AgendaTimeline(
                 ) {
                     EventoCard(
                         agendamento = agendamento,
-                        pago = agendamento.id in pagos,
+                        pago = agendamento.id in pagos.keys,
+                        valorPago = pagos[agendamento.id],
                         altura = alturaEvento,
                         onClick = { onAgendamentoClick(agendamento) }
                     )
@@ -99,6 +100,7 @@ fun AgendaTimeline(
 fun EventoCard(
     agendamento: Agendamento,
     pago: Boolean,
+    valorPago: Double?,
     altura: Dp,
     onClick: () -> Unit
 ) {
@@ -166,20 +168,20 @@ fun EventoCard(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = agendamento.clienteNome,
-                    fontSize = 15.sp,
+                    fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
                     color = textoNome
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = agendamento.servicoNome,
-                    fontSize = 13.sp,
+                    fontSize = 14.sp,
                     color = textoSub
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = formatarIntervalo(agendamento),
-                    fontSize = 13.sp,
+                    fontSize = 14.sp,
                     color = textoSub
                 )
             }
@@ -192,7 +194,7 @@ fun EventoCard(
                 ) {
                     Text(
                         text = statusTexto,
-                        fontSize = 12.sp,
+                        fontSize = 11.sp,
                         fontWeight = FontWeight.Medium,
                         color = Branco,
                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
@@ -202,9 +204,19 @@ fun EventoCard(
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = "Não pago",
-                        fontSize = 15.sp,
+                        fontSize = 14.sp,
                         fontWeight = FontWeight.Medium,
                         color = EventoAmareloBorda
+                    )
+                }
+                // Mostra o valor abaixo do PAGO
+                if (pago && valorPago != null) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "R$ ${"%.2f".format(valorPago).replace(".", ",")}",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = EventoVerdeBorda
                     )
                 }
             }

@@ -220,7 +220,7 @@ fun AgendamentoScreen(
                             items(agendamentos) { agendamento ->
                                 AgendamentoCard(
                                     agendamento = agendamento,
-                                    pago = agendamento.id in agendamentosPagos,
+                                    pago = agendamento.id in agendamentosPagos.keys,
                                     onClick = { agendamentoParaEditar = agendamento }
                                 )
                             }
@@ -359,6 +359,7 @@ fun AgendamentoScreen(
                     formState = formState,
                     pagamentoState = pagamentoState,
                     precoSugerido = precoSugerido,
+                    jaPago = agendamento.id in agendamentosPagos.keys,
                     onCancelar = { viewModel.cancelarAgendamento(agendamento.id) },
                     onConcluir = { viewModel.concluirAgendamento(agendamento.id) },
                     onAlterarServico = { servicoId, dataHora ->
@@ -382,6 +383,7 @@ fun EdicaoAgendamentoForm(
     formState: FormState,
     pagamentoState: PagamentoState,
     precoSugerido: Double,
+    jaPago: Boolean,
     onAbrirPagamento: () -> Unit,
     onCancelar: () -> Unit,
     onConcluir: () -> Unit,
@@ -518,19 +520,35 @@ fun EdicaoAgendamentoForm(
 
         } else {
             if (agendamento.status == "CONCLUIDO") {
-                // Botão de registrar pagamento para agendamentos concluídos
-                Button(
-                    onClick = { onAbrirPagamento() },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(52.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = TagConcluidoFundo,
-                        contentColor = TagConcluidoTexto
-                    )
-                ) {
-                    Text("Registrar Pagamento", fontSize = 16.sp, fontWeight = FontWeight.Medium)
+                if (!jaPago) {
+                    // Mostra o botão só se ainda não foi pago
+                    Button(
+                        onClick = { onAbrirPagamento() },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(52.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = TagConcluidoFundo,
+                            contentColor = TagConcluidoTexto
+                        )
+                    ) {
+                        Text("Registrar Pagamento", fontSize = 16.sp, fontWeight = FontWeight.Medium)
+                    }
+                } else {
+                    // Agendamento já pago — mostra mensagem informativa
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        color = EventoVerdeFundo
+                    ) {
+                        Text(
+                            text = "Pagamento já registrado.",
+                            modifier = Modifier.padding(16.dp),
+                            color = EventoVerdeTexto,
+                            fontSize = 14.sp
+                        )
+                    }
                 }
             } else {
                 Surface(
