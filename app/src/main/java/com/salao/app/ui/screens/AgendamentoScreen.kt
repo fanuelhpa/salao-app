@@ -29,6 +29,8 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 import android.widget.Toast
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterialApi::class)
 @Composable
@@ -138,7 +140,6 @@ fun AgendamentoScreen(
                                 Text(
                                     text = when (filtro) {
                                         FiltroStatus.AGENDADO -> "Agendados"
-                                        FiltroStatus.CONCLUIDO -> "Concluidos"
                                         FiltroStatus.CANCELADO -> "Cancelados"
                                         FiltroStatus.PENDENTES -> "Pendentes"
                                     },
@@ -173,22 +174,56 @@ fun AgendamentoScreen(
                         Text(text = "Nenhum agendamento encontrado.", color = TextoSecundario)
                     }
                 } else {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(
-                            start = 16.dp,
-                            end = 16.dp,
-                            top = 0.dp,
-                            bottom = 80.dp
-                        ),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        items(agendamentos) { agendamento ->
-                            AgendamentoCard(
-                                agendamento = agendamento,
-                                pago = agendamento.id in agendamentosPagos,
-                                onClick = { agendamentoParaEditar = agendamento }
+                    if (filtroStatus == FiltroStatus.AGENDADO) {
+                        val scrollState = rememberScrollState()
+                        val density = androidx.compose.ui.platform.LocalDensity.current
+                        // Faz scroll automatico para o primeiro agendamento do dia
+                        LaunchedEffect(agendamentos) {
+                            if (agendamentos.isNotEmpty()) {
+                                val primeiroAgendamento = agendamentos.minByOrNull { it.dataHora }
+                                primeiroAgendamento?.let { ag ->
+                                    val partes = ag.dataHora.substring(11, 16).split(":")
+                                    val minutosTotal = partes[0].toInt() * 60 + partes[1].toInt()
+                                    val pixelsPorMinuto = 4f
+                                    // Converte dp para pixels usando a densidade real
+                                    val targetPx = with(density) {
+                                        (minutosTotal * pixelsPorMinuto).dp.toPx().toInt()
+                                    }
+                                    scrollState.animateScrollTo(targetPx)
+                                }
+                            }
+                        }
+
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .verticalScroll(scrollState)
+                                .padding(bottom = 80.dp)
+                        ) {
+                            AgendaTimeline(
+                                agendamentos = agendamentos,
+                                pagos = agendamentosPagos,
+                                onAgendamentoClick = { agendamentoParaEditar = it }
                             )
+                        }
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(
+                                start = 16.dp,
+                                end = 16.dp,
+                                top = 0.dp,
+                                bottom = 80.dp
+                            ),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            items(agendamentos) { agendamento ->
+                                AgendamentoCard(
+                                    agendamento = agendamento,
+                                    pago = agendamento.id in agendamentosPagos,
+                                    onClick = { agendamentoParaEditar = agendamento }
+                                )
+                            }
                         }
                     }
                 }

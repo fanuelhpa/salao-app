@@ -6,6 +6,7 @@ data class Agendamento(
     val clienteNome: String,
     val servicoId: Long,
     val servicoNome: String,
+    val duracaoMinutos: Int,
     val dataHora: String,
     val status: String,
     val observacoes: String?

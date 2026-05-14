@@ -21,7 +21,7 @@ import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
-enum class FiltroStatus { AGENDADO, CONCLUIDO, CANCELADO, PENDENTES }
+enum class FiltroStatus { AGENDADO, CANCELADO, PENDENTES }
 
 class AgendamentoViewModel(
     private val token: String
@@ -55,23 +55,31 @@ class AgendamentoViewModel(
         _dataSelecionada,
         _filtroStatus
     ) { agendamentos, pagos, data, filtro ->
-        if (filtro == FiltroStatus.PENDENTES) {
-            val hoje = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
-            agendamentos.filter { agendamento ->
-                val dataAgendamento = agendamento.dataHora.substring(0, 10)
-                // Agendamentos no passado que precisam de acao:
-                // - Status AGENDADO (precisa concluir ou cancelar)
-                // - Status CONCLUIDO sem pagamento (precisa registrar pagamento)
-                dataAgendamento < hoje && (
-                        agendamento.status == "AGENDADO" ||
-                                (agendamento.status == "CONCLUIDO" && agendamento.id !in pagos)
-                        )
+        when (filtro) {
+            FiltroStatus.PENDENTES -> {
+                val hoje = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
+                agendamentos.filter { agendamento ->
+                    val dataAgendamento = agendamento.dataHora.substring(0, 10)
+                    dataAgendamento < hoje && (
+                            agendamento.status == "AGENDADO" ||
+                                    (agendamento.status == "CONCLUIDO" && agendamento.id !in pagos)
+                            )
+                }
             }
-        } else {
-            val dataFormatada = data.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
-            agendamentos.filter { agendamento ->
-                agendamento.dataHora.startsWith(dataFormatada) &&
-                        agendamento.status == filtro.name
+            FiltroStatus.AGENDADO -> {
+                // Mostra AGENDADO e CONCLUIDO do dia selecionado
+                val dataFormatada = data.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
+                agendamentos.filter { agendamento ->
+                    agendamento.dataHora.startsWith(dataFormatada) &&
+                            (agendamento.status == "AGENDADO" || agendamento.status == "CONCLUIDO")
+                }.sortedBy { it.dataHora }
+            }
+            FiltroStatus.CANCELADO -> {
+                val dataFormatada = data.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
+                agendamentos.filter { agendamento ->
+                    agendamento.dataHora.startsWith(dataFormatada) &&
+                            agendamento.status == "CANCELADO"
+                }.sortedBy { it.dataHora }
             }
         }
     }.stateIn(
