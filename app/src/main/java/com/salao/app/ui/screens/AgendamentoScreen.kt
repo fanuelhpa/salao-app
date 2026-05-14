@@ -31,13 +31,17 @@ import android.widget.Toast
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.ui.zIndex
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterialApi::class)
 @Composable
 fun AgendamentoScreen(
     viewModel: AgendamentoViewModel,
     modifier: Modifier = Modifier,
-    onLogout: () -> Unit = {}
+    onLogout: () -> Unit = {},
+    mostrarFormularioCadastro: Boolean = false,
+    onFecharFormulario: () -> Unit = {}
 ) {
 
     val agendamentos by viewModel.agendamentosFiltrados.collectAsState()
@@ -98,14 +102,10 @@ fun AgendamentoScreen(
                     }
                 },
                 actions = {
-                    // Só mostra o calendário se NÃO estiver no filtro de pendentes
                     if (filtroStatus != FiltroStatus.PENDENTES) {
                         IconButton(onClick = { mostrarDatePickerFiltro = true }) {
                             Text("📅", fontSize = 18.sp)
                         }
-                    }
-                    IconButton(onClick = { mostrarFormularioCadastro = true }) {
-                        Text("+", fontSize = 24.sp, color = Branco, fontWeight = FontWeight.Light)
                     }
                     MenuLogout(onLogout = onLogout)
                 },
@@ -113,13 +113,18 @@ fun AgendamentoScreen(
             )
         },
         containerColor = VerdeSurface
-
     ) { paddingValues ->
 
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues)
+                .padding(paddingValues),
+            contentAlignment = Alignment.TopStart
+        ) {
+        // Conteúdo principal com pull refresh
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
                 .pullRefresh(pullRefreshState)
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
@@ -177,7 +182,6 @@ fun AgendamentoScreen(
                     if (filtroStatus == FiltroStatus.AGENDADO) {
                         val scrollState = rememberScrollState()
                         val density = androidx.compose.ui.platform.LocalDensity.current
-                        // Faz scroll automatico para o primeiro agendamento do dia
                         LaunchedEffect(agendamentos) {
                             if (agendamentos.isNotEmpty()) {
                                 val primeiroAgendamento = agendamentos.minByOrNull { it.dataHora }
@@ -185,7 +189,6 @@ fun AgendamentoScreen(
                                     val partes = ag.dataHora.substring(11, 16).split(":")
                                     val minutosTotal = partes[0].toInt() * 60 + partes[1].toInt()
                                     val pixelsPorMinuto = 4f
-                                    // Converte dp para pixels usando a densidade real
                                     val targetPx = with(density) {
                                         (minutosTotal * pixelsPorMinuto).dp.toPx().toInt()
                                     }
@@ -236,7 +239,20 @@ fun AgendamentoScreen(
                 contentColor = VerdeMusgo
             )
         }
+
+            FloatingActionButton(
+                onClick = { mostrarFormularioCadastro = true },
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = 16.dp, bottom = 100.dp), // aumenta o padding bottom
+                containerColor = VerdeMusgo,
+                contentColor = Branco,
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Text("+", fontSize = 28.sp, fontWeight = FontWeight.Light)
+            }
     }
+}
 
     // Dialog do calendário para filtrar por dia
     if (mostrarDatePickerFiltro) {
