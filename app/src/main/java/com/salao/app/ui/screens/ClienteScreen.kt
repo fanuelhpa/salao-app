@@ -23,6 +23,8 @@ import com.salao.app.ui.theme.*
 import com.salao.app.viewmodel.ClienteUiState
 import com.salao.app.viewmodel.ClienteViewModel
 import com.salao.app.viewmodel.FormState
+import android.widget.Toast
+import androidx.compose.ui.platform.LocalContext
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterialApi::class)
 @Composable
@@ -46,11 +48,14 @@ fun ClienteScreen(
         onRefresh = { viewModel.carregarClientes() }
     )
 
+    val context = LocalContext.current
+
     LaunchedEffect(formState) {
         if (formState is FormState.Sucesso) {
             mostrarFormularioCadastro = false
             clienteParaEditar = null
             viewModel.resetFormState()
+            Toast.makeText(context, "Cliente salvo com sucesso!", Toast.LENGTH_LONG).show()
         }
     }
 
@@ -71,9 +76,6 @@ fun ClienteScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { mostrarFormularioCadastro = true }) {
-                        Text("+", fontSize = 24.sp, color = Branco, fontWeight = FontWeight.Light)
-                    }
                     MenuLogout(onLogout = onLogout)
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = VerdeMusgo)
@@ -82,10 +84,15 @@ fun ClienteScreen(
         containerColor = VerdeSurface
     ) { paddingValues ->
 
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(paddingValues)
+    ) {
+        // Box interno com pullRefresh
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues)
                 .pullRefresh(pullRefreshState)
         ) {
             when (uiState) {
@@ -119,14 +126,13 @@ fun ClienteScreen(
                                 start = 16.dp,
                                 end = 16.dp,
                                 top = 16.dp,
-                                bottom = 80.dp  // aumentado para compensar a barra de navegação
+                                bottom = 80.dp
                             ),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ){
+                        ) {
                             items(clientes) { cliente ->
                                 ClienteCard(
                                     cliente = cliente,
-                                    // Ao clicar no card, abre o formulário de edição
                                     onClick = { clienteParaEditar = cliente }
                                 )
                             }
@@ -142,7 +148,21 @@ fun ClienteScreen(
                 contentColor = VerdeMusgo
             )
         }
+
+        // FAB fora do pullRefresh
+        FloatingActionButton(
+            onClick = { mostrarFormularioCadastro = true },
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(end = 16.dp, bottom = 100.dp),
+            containerColor = VerdeMusgo,
+            contentColor = Branco,
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Text("+", fontSize = 28.sp, fontWeight = FontWeight.Light)
+        }
     }
+}
 
     // Formulário de cadastro
     if (mostrarFormularioCadastro) {

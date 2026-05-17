@@ -23,6 +23,8 @@ import com.salao.app.ui.theme.*
 import com.salao.app.viewmodel.FormState
 import com.salao.app.viewmodel.ServicoUiState
 import com.salao.app.viewmodel.ServicoViewModel
+import android.widget.Toast
+import androidx.compose.ui.platform.LocalContext
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterialApi::class)
 @Composable
@@ -43,11 +45,14 @@ fun ServicoScreen(
         onRefresh = { viewModel.carregarServicos() }
     )
 
+    val context = LocalContext.current
+
     LaunchedEffect(formState) {
         if (formState is FormState.Sucesso) {
             servicoParaEditar = null
             mostrarFormularioCadastro = false
             viewModel.resetFormState()
+            Toast.makeText(context, "Serviço salvo com sucesso!", Toast.LENGTH_LONG).show()
         }
     }
 
@@ -64,9 +69,6 @@ fun ServicoScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { mostrarFormularioCadastro = true }) {
-                        Text("+", fontSize = 24.sp, color = Branco, fontWeight = FontWeight.Light)
-                    }
                     MenuLogout(onLogout = onLogout)
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = VerdeMusgo)
@@ -79,60 +81,79 @@ fun ServicoScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .pullRefresh(pullRefreshState)
         ) {
-            when (uiState) {
-                is ServicoUiState.Loading -> {
-                    if (!isRefreshing) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.align(Alignment.Center),
-                            color = VerdeMusgo
+            // Box interno com pullRefresh
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .pullRefresh(pullRefreshState)
+            ) {
+                when (uiState) {
+                    is ServicoUiState.Loading -> {
+                        if (!isRefreshing) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.align(Alignment.Center),
+                                color = VerdeMusgo
+                            )
+                        }
+                    }
+                    is ServicoUiState.Error -> {
+                        Text(
+                            text = (uiState as ServicoUiState.Error).message,
+                            color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.align(Alignment.Center)
                         )
                     }
-                }
-                is ServicoUiState.Error -> {
-                    Text(
-                        text = (uiState as ServicoUiState.Error).message,
-                        color = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.align(Alignment.Center)
-                    )
-                }
-                is ServicoUiState.Success -> {
-                    val servicos = (uiState as ServicoUiState.Success).servicos
-                    if (servicos.isEmpty()) {
-                        Text(
-                            text = "Nenhum servico cadastrado.",
-                            modifier = Modifier.align(Alignment.Center),
-                            color = TextoSecundario
-                        )
-                    } else {
-                        LazyColumn(
-                            modifier = Modifier.fillMaxSize(),
-                            contentPadding = PaddingValues(
-                                start = 16.dp,
-                                end = 16.dp,
-                                top = 16.dp,
-                                bottom = 80.dp
-                            ),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            items(servicos) { servico ->
-                                ServicoCard(
-                                    servico = servico,
-                                    onClick = { servicoParaEditar = servico }
-                                )
+                    is ServicoUiState.Success -> {
+                        val servicos = (uiState as ServicoUiState.Success).servicos
+                        if (servicos.isEmpty()) {
+                            Text(
+                                text = "Nenhum servico cadastrado.",
+                                modifier = Modifier.align(Alignment.Center),
+                                color = TextoSecundario
+                            )
+                        } else {
+                            LazyColumn(
+                                modifier = Modifier.fillMaxSize(),
+                                contentPadding = PaddingValues(
+                                    start = 16.dp,
+                                    end = 16.dp,
+                                    top = 16.dp,
+                                    bottom = 80.dp
+                                ),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                items(servicos) { servico ->
+                                    ServicoCard(
+                                        servico = servico,
+                                        onClick = { servicoParaEditar = servico }
+                                    )
+                                }
                             }
                         }
                     }
                 }
+
+                PullRefreshIndicator(
+                    refreshing = isRefreshing,
+                    state = pullRefreshState,
+                    modifier = Modifier.align(Alignment.TopCenter),
+                    contentColor = VerdeMusgo
+                )
             }
 
-            PullRefreshIndicator(
-                refreshing = isRefreshing,
-                state = pullRefreshState,
-                modifier = Modifier.align(Alignment.TopCenter),
-                contentColor = VerdeMusgo
-            )
+            // FAB fora do pullRefresh
+            FloatingActionButton(
+                onClick = { mostrarFormularioCadastro = true },
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = 16.dp, bottom = 100.dp),
+                containerColor = VerdeMusgo,
+                contentColor = Branco,
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Text("+", fontSize = 28.sp, fontWeight = FontWeight.Light)
+            }
         }
     }
 

@@ -64,16 +64,19 @@ fun AgendamentoScreen(
         refreshing = carregando,
         onRefresh = { viewModel.carregarAgendamentos() }
     )
+    
+    val context = LocalContext.current
 
     LaunchedEffect(formState) {
         if (formState is FormState.Sucesso) {
             mostrarFormularioCadastro = false
             agendamentoParaEditar = null
             viewModel.resetFormState()
+            Toast.makeText(context, "Agendamento salvo com sucesso!", Toast.LENGTH_LONG).show()
         }
     }
 
-    val context = LocalContext.current
+
 
     val dataFormatada = remember(dataSelecionada) {
         val hoje = LocalDate.now()
