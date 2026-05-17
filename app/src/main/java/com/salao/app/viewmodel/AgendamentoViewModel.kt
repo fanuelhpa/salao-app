@@ -211,11 +211,11 @@ class AgendamentoViewModel(
         }
     }
 
-    fun registrarPagamento(agendamentoId: Long, valor: Double, metodoPagamento: String) {
+    fun registrarPagamento(agendamentoId: Long, valor: Double, metodoPagamento: String, dataPagamento: String) {
         _pagamentoState.value = PagamentoState.Loading
         viewModelScope.launch {
             val result = pagamentoRepository.registrarPagamento(
-                PagamentoRequest(agendamentoId, valor, metodoPagamento)
+                PagamentoRequest(agendamentoId, valor, metodoPagamento, dataPagamento)
             )
             if (result.isSuccess) {
                 _pagamentoState.value = PagamentoState.Sucesso

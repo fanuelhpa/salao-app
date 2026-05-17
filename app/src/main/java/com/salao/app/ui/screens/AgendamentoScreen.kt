@@ -351,8 +351,8 @@ fun AgendamentoScreen(
                     agendamento = agendamento,
                     precoSugerido = precoSugerido,
                     pagamentoState = pagamentoState,
-                    onRegistrar = { valor, metodo ->
-                        viewModel.registrarPagamento(agendamento.id, valor, metodo)
+                    onRegistrar = { valor, metodo, data ->
+                        viewModel.registrarPagamento(agendamento.id, valor, metodo, data)
                     },
                     onDismiss = {
                         mostrarFormPagamento = false
@@ -381,8 +381,8 @@ fun AgendamentoScreen(
                     onAlterarServico = { servicoId, dataHora ->
                         viewModel.atualizarAgendamento(agendamento.id, servicoId, dataHora)
                     },
-                    onRegistrarPagamento = { valor, metodo ->
-                        viewModel.registrarPagamento(agendamento.id, valor, metodo)
+                    onRegistrarPagamento = { valor, metodo, data ->
+                        viewModel.registrarPagamento(agendamento.id, valor, metodo, data)
                     },
                     onAbrirPagamento = { mostrarFormPagamento = true } // abre o form
                 )
@@ -404,7 +404,7 @@ fun EdicaoAgendamentoForm(
     onCancelar: () -> Unit,
     onConcluir: () -> Unit,
     onAlterarServico: (Long, String) -> Unit,
-    onRegistrarPagamento: (Double, String) -> Unit
+    onRegistrarPagamento: (Double, String, String) -> Unit,
 ){
     var servicoSelecionado by remember {
         mutableStateOf(servicos.find { it.id == agendamento.servicoId })
@@ -801,11 +801,12 @@ fun CadastroAgendamentoForm(
 
 @Composable
 fun AgendamentoCard(agendamento: Agendamento, pago: Boolean = false, onClick: () -> Unit) {
-    val (tagFundo, tagTexto) = when (agendamento.status) {
-        "AGENDADO"  -> TagAgendadoFundo  to TagAgendadoTexto
-        "CONCLUIDO" -> TagConcluidoFundo to TagConcluidoTexto
-        "CANCELADO" -> TagCanceladoFundo to TagCanceladoTexto
-        else        -> VerdeFundo        to VerdeMusgo
+    val (tagFundo, tagTexto) = when {
+        agendamento.status == "AGENDADO"  -> TagAgendadoFundo  to TagAgendadoTexto
+        agendamento.status == "CONCLUIDO" && pago -> EventoVerdeBorda to Branco
+        agendamento.status == "CONCLUIDO" && !pago -> EventoAmareloBorda to Branco
+        agendamento.status == "CANCELADO" -> TagCanceladoFundo to TagCanceladoTexto
+        else -> VerdeFundo to VerdeMusgo
     }
 
     Card(
@@ -857,19 +858,29 @@ fun AgendamentoCard(agendamento: Agendamento, pago: Boolean = false, onClick: ()
                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                     )
                 }
-                // Tag de PAGO aparece abaixo do status quando concluído e pago
-                if (pago && agendamento.status == "CONCLUIDO") {
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Surface(
-                        shape = RoundedCornerShape(20.dp),
-                        color = VerdeFundo
-                    ) {
+                // Tag de PAGO ou Nao pago
+                if (agendamento.status == "CONCLUIDO") {
+                    if (pago) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Surface(
+                            shape = RoundedCornerShape(20.dp),
+                            color = EventoVerdeBorda
+                        ) {
+                            Text(
+                                text = "PAGO",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = Branco,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                            )
+                        }
+                    } else {
+                        Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "PAGO",
-                            fontSize = 11.sp,
+                            text = "Não pago",
+                            fontSize = 12.sp,
                             fontWeight = FontWeight.Medium,
-                            color = VerdeMusgo,
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                            color = EventoAmareloBorda
                         )
                     }
                 }
