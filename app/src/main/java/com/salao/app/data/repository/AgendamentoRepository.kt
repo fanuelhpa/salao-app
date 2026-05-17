@@ -52,4 +52,13 @@ class AgendamentoRepository(private val token: String) {
             tratarErro(e, "Erro ao carregar agendamentos.")
         }
     }
+
+    suspend fun listarAgendamentosPorData(data: String): Result<List<Agendamento>> {
+        return try {
+            val response = RetrofitClient.comToken(token).listarAgendamentosPorData(data)
+            Result.success(response)
+        } catch (e: Exception) {
+            tratarErro(e, "Erro ao carregar agendamentos.")
+        }
+    }
 }

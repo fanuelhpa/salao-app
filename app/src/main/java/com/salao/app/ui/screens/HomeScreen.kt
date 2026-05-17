@@ -74,8 +74,16 @@ fun HomeScreen(
 
     LaunchedEffect(abaSelecionada) {
         if (abaSelecionada == HomeTab.AGENDAMENTOS) {
-            agendamentoViewModel.selecionarData(LocalDate.now())
-            agendamentoViewModel.selecionarFiltro(FiltroStatus.AGENDADO)
+            val dataAtual = agendamentoViewModel.dataSelecionada.value
+            val filtroAtual = agendamentoViewModel.filtroStatus.value
+            val hoje = LocalDate.now()
+
+            // Só reseta se a data ou filtro mudaram
+            if (dataAtual != hoje || filtroAtual != FiltroStatus.AGENDADO) {
+                agendamentoViewModel.selecionarData(hoje)
+                agendamentoViewModel.selecionarFiltro(FiltroStatus.AGENDADO)
+            }
+            // Se data e filtro já estão corretos, não faz nada — usa o cache
         }
     }
 

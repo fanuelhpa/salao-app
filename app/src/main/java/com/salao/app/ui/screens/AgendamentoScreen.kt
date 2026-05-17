@@ -46,7 +46,7 @@ fun AgendamentoScreen(
     modifier: Modifier = Modifier,
     onLogout: () -> Unit = {}
 ) {
-    val agendamentos by viewModel.agendamentosFiltrados.collectAsState()
+    val agendamentos by viewModel.agendamentos.collectAsState()
     val formState by viewModel.formState.collectAsState()
     val clientes by viewModel.clientes.collectAsState()
     val servicos by viewModel.servicos.collectAsState()
@@ -353,6 +353,7 @@ fun AgendamentoScreen(
     agendamentoParaEditar?.let { agendamento ->
         val pagamentoState by viewModel.pagamentoState.collectAsState()
         var mostrarFormPagamento by remember { mutableStateOf(false) }
+        val cancelamentoState by viewModel.cancelamentoState.collectAsState()
         val precoSugerido = viewModel.servicos.value.find { it.id == agendamento.servicoId }?.preco ?: 0.0
 
         LaunchedEffect(pagamentoState) {
@@ -434,6 +435,7 @@ fun AgendamentoScreen(
                             servicos = servicos,
                             formState = formState,
                             pagamentoState = pagamentoState,
+                            cancelamentoState = cancelamentoState,
                             precoSugerido = precoSugerido,
                             jaPago = agendamento.id in agendamentosPagos.keys,
                             onCancelar = { viewModel.cancelarAgendamento(agendamento.id) },
@@ -460,6 +462,7 @@ fun EdicaoAgendamentoForm(
     servicos: List<Servico>,
     formState: FormState,
     pagamentoState: PagamentoState,
+    cancelamentoState: FormState,
     precoSugerido: Double,
     jaPago: Boolean,
     onAbrirPagamento: () -> Unit,
@@ -614,7 +617,7 @@ fun EdicaoAgendamentoForm(
                 modifier = Modifier.fillMaxWidth().height(52.dp),
                 shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = VerdeMusgo),
-                enabled = formState !is FormState.Loading
+                enabled = formState !is FormState.Loading && cancelamentoState !is FormState.Loading
             ) {
                 if (formState is FormState.Loading) CircularProgressIndicator(modifier = Modifier.size(22.dp), color = Branco, strokeWidth = 2.dp)
                 else Text("Salvar alteracoes", fontSize = 16.sp, fontWeight = FontWeight.Medium)
@@ -627,7 +630,7 @@ fun EdicaoAgendamentoForm(
                 modifier = Modifier.fillMaxWidth().height(52.dp),
                 shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = TagConcluidoFundo, contentColor = TagConcluidoTexto),
-                enabled = formState !is FormState.Loading
+                enabled = formState !is FormState.Loading && cancelamentoState !is FormState.Loading
             ) { Text("Concluir agendamento", fontSize = 16.sp, fontWeight = FontWeight.Medium) }
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -638,8 +641,14 @@ fun EdicaoAgendamentoForm(
                 shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.outlinedButtonColors(contentColor = TagCanceladoTexto),
                 border = androidx.compose.foundation.BorderStroke(1.dp, TagCanceladoTexto),
-                enabled = formState !is FormState.Loading
-            ) { Text("Cancelar agendamento", fontSize = 16.sp, fontWeight = FontWeight.Medium) }
+                enabled = formState !is FormState.Loading && cancelamentoState !is FormState.Loading
+            ) {
+                if (cancelamentoState is FormState.Loading) {
+                    CircularProgressIndicator(modifier = Modifier.size(22.dp), color = TagCanceladoTexto, strokeWidth = 2.dp)
+                } else {
+                    Text("Cancelar agendamento", fontSize = 16.sp, fontWeight = FontWeight.Medium)
+                }
+            }
 
             if (mostrarConfirmacaoCancelamento) {
                 AlertDialog(

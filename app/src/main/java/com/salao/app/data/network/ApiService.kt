@@ -62,6 +62,9 @@ interface ApiService {
     @GET("pagamentos")
     suspend fun listarPagamentos(): List<Pagamento>
 
+    @GET("agendamentos/data")
+    suspend fun listarAgendamentosPorData(@Query("data") data: String): List<Agendamento>
+
     @GET("pagamentos/periodo")
     suspend fun buscarPagamentosPorPeriodo(
         @Query("inicio") inicio: String,
