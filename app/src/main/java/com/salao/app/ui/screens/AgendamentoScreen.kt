@@ -1,11 +1,17 @@
 package com.salao.app.ui.screens
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.ExperimentalMaterialApi
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.pullrefresh.PullRefreshIndicator
 import androidx.compose.material.pullrefresh.pullRefresh
 import androidx.compose.material.pullrefresh.rememberPullRefreshState
@@ -13,9 +19,13 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.widget.Toast
+import androidx.compose.ui.platform.LocalContext
 import com.salao.app.data.model.Agendamento
 import com.salao.app.data.model.Cliente
 import com.salao.app.data.model.Servico
@@ -27,23 +37,15 @@ import com.salao.app.viewmodel.PagamentoState
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
-import android.widget.Toast
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.FloatingActionButton
-import androidx.compose.ui.zIndex
+import androidx.compose.foundation.lazy.itemsIndexed
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterialApi::class)
 @Composable
 fun AgendamentoScreen(
     viewModel: AgendamentoViewModel,
     modifier: Modifier = Modifier,
-    onLogout: () -> Unit = {},
-    mostrarFormularioCadastro: Boolean = false,
-    onFecharFormulario: () -> Unit = {}
+    onLogout: () -> Unit = {}
 ) {
-
     val agendamentos by viewModel.agendamentosFiltrados.collectAsState()
     val formState by viewModel.formState.collectAsState()
     val clientes by viewModel.clientes.collectAsState()
@@ -52,6 +54,7 @@ fun AgendamentoScreen(
     val dataSelecionada by viewModel.dataSelecionada.collectAsState()
     val filtroStatus by viewModel.filtroStatus.collectAsState()
     val agendamentosPagos by viewModel.agendamentosPagos.collectAsState()
+    val cancelamentoState by viewModel.cancelamentoState.collectAsState()
 
     var mostrarFormularioCadastro by remember { mutableStateOf(false) }
     var agendamentoParaEditar by remember { mutableStateOf<Agendamento?>(null) }
@@ -64,8 +67,16 @@ fun AgendamentoScreen(
         refreshing = carregando,
         onRefresh = { viewModel.carregarAgendamentos() }
     )
-    
+
     val context = LocalContext.current
+
+    LaunchedEffect(cancelamentoState) {
+        if (cancelamentoState is FormState.Sucesso) {
+            agendamentoParaEditar = null
+            viewModel.resetCancelamentoState()
+            Toast.makeText(context, "Agendamento cancelado com sucesso!", Toast.LENGTH_LONG).show()
+        }
+    }
 
     LaunchedEffect(formState) {
         if (formState is FormState.Sucesso) {
@@ -76,7 +87,11 @@ fun AgendamentoScreen(
         }
     }
 
-
+    LaunchedEffect(mostrarFormularioCadastro) {
+        if (mostrarFormularioCadastro) {
+            viewModel.carregarClientesEServicos()
+        }
+    }
 
     val dataFormatada = remember(dataSelecionada) {
         val hoje = LocalDate.now()
@@ -121,164 +136,151 @@ fun AgendamentoScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues),
-            contentAlignment = Alignment.TopStart
+                .padding(paddingValues)
         ) {
-        // Conteúdo principal com pull refresh
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .pullRefresh(pullRefreshState)
-        ) {
-            Column(modifier = Modifier.fillMaxSize()) {
-
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 10.dp),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    FiltroStatus.entries.forEach { filtro ->
-                        val selecionado = filtroStatus == filtro
-                        FilterChip(
-                            modifier = Modifier.weight(1f),
-                            selected = selecionado,
-                            onClick = { viewModel.selecionarFiltro(filtro) },
-                            label = {
-                                Text(
-                                    text = when (filtro) {
-                                        FiltroStatus.AGENDADO -> "Agendados"
-                                        FiltroStatus.CANCELADO -> "Cancelados"
-                                        FiltroStatus.PENDENTES -> "Pendentes"
-                                    },
-                                    fontSize = 11.sp,
-                                    maxLines = 1,
-                                    modifier = Modifier.fillMaxWidth(),
-                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                                )
-                            },
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = VerdeMusgo,
-                                selectedLabelColor = Branco,
-                                containerColor = Branco,
-                                labelColor = VerdeMusgo
-                            ),
-                            border = FilterChipDefaults.filterChipBorder(
-                                enabled = true,
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .pullRefresh(pullRefreshState)
+            ) {
+                Column(modifier = Modifier.fillMaxSize()) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        FiltroStatus.entries.forEach { filtro ->
+                            val selecionado = filtroStatus == filtro
+                            FilterChip(
+                                modifier = Modifier.weight(1f),
                                 selected = selecionado,
-                                borderColor = VerdeMusgo,
-                                selectedBorderColor = VerdeMusgo
+                                onClick = { viewModel.selecionarFiltro(filtro) },
+                                label = {
+                                    Text(
+                                        text = when (filtro) {
+                                            FiltroStatus.AGENDADO -> "Agendados"
+                                            FiltroStatus.PENDENTES -> "Pendentes"
+                                        },
+                                        fontSize = 11.sp,
+                                        maxLines = 1,
+                                        modifier = Modifier.fillMaxWidth(),
+                                        textAlign = TextAlign.Center
+                                    )
+                                },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = VerdeMusgo,
+                                    selectedLabelColor = Branco,
+                                    containerColor = Branco,
+                                    labelColor = VerdeMusgo
+                                ),
+                                border = FilterChipDefaults.filterChipBorder(
+                                    enabled = true,
+                                    selected = selecionado,
+                                    borderColor = VerdeMusgo,
+                                    selectedBorderColor = VerdeMusgo
+                                )
                             )
-                        )
+                        }
                     }
-                }
 
-                if (carregando) {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(color = VerdeMusgo)
-                    }
-                } else if (agendamentos.isEmpty()) {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text(text = "Nenhum agendamento encontrado.", color = TextoSecundario)
-                    }
-                } else {
-                    if (filtroStatus == FiltroStatus.AGENDADO) {
-                        val scrollState = rememberScrollState()
-                        val density = androidx.compose.ui.platform.LocalDensity.current
-                        LaunchedEffect(agendamentos) {
-                            if (agendamentos.isNotEmpty()) {
-                                val primeiroAgendamento = agendamentos.minByOrNull { it.dataHora }
-                                primeiroAgendamento?.let { ag ->
-                                    val partes = ag.dataHora.substring(11, 16).split(":")
-                                    val minutosTotal = partes[0].toInt() * 60 + partes[1].toInt()
-                                    val pixelsPorMinuto = 4f
-                                    val targetPx = with(density) {
-                                        (minutosTotal * pixelsPorMinuto).dp.toPx().toInt()
+                    if (carregando) {
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator(color = VerdeMusgo)
+                        }
+                    } else if (agendamentos.isEmpty()) {
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Text(text = "Nenhum agendamento encontrado.", color = TextoSecundario)
+                        }
+                    } else {
+                        if (filtroStatus == FiltroStatus.AGENDADO) {
+                            val scrollState = rememberScrollState()
+                            val density = androidx.compose.ui.platform.LocalDensity.current
+                            LaunchedEffect(agendamentos) {
+                                if (agendamentos.isNotEmpty()) {
+                                    val primeiroAgendamento = agendamentos.minByOrNull { it.dataHora }
+                                    primeiroAgendamento?.let { ag ->
+                                        val partes = ag.dataHora.substring(11, 16).split(":")
+                                        val minutosTotal = partes[0].toInt() * 60 + partes[1].toInt()
+                                        val pixelsPorMinuto = 4f
+                                        val targetPx = with(density) {
+                                            (minutosTotal * pixelsPorMinuto).dp.toPx().toInt()
+                                        }
+                                        scrollState.animateScrollTo(targetPx)
                                     }
-                                    scrollState.animateScrollTo(targetPx)
+                                }
+                            }
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .verticalScroll(scrollState)
+                                    .padding(bottom = 80.dp)
+                            ) {
+                                AgendaTimeline(
+                                    agendamentos = agendamentos,
+                                    pagos = agendamentosPagos,
+                                    onAgendamentoClick = { agendamentoParaEditar = it }
+                                )
+                            }
+                        } else {
+                            LazyColumn(
+                                modifier = Modifier.fillMaxSize(),
+                                contentPadding = PaddingValues(
+                                    start = 16.dp, end = 16.dp, top = 0.dp, bottom = 80.dp
+                                ),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                items(agendamentos) { agendamento ->
+                                    AgendamentoCard(
+                                        agendamento = agendamento,
+                                        pago = agendamento.id in agendamentosPagos.keys,
+                                        onClick = { agendamentoParaEditar = agendamento }
+                                    )
                                 }
                             }
                         }
-
-                        Column(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .verticalScroll(scrollState)
-                                .padding(bottom = 80.dp)
-                        ) {
-                            AgendaTimeline(
-                                agendamentos = agendamentos,
-                                pagos = agendamentosPagos,
-                                onAgendamentoClick = { agendamentoParaEditar = it }
-                            )
-                        }
-                    } else {
-                        LazyColumn(
-                            modifier = Modifier.fillMaxSize(),
-                            contentPadding = PaddingValues(
-                                start = 16.dp,
-                                end = 16.dp,
-                                top = 0.dp,
-                                bottom = 80.dp
-                            ),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            items(agendamentos) { agendamento ->
-                                AgendamentoCard(
-                                    agendamento = agendamento,
-                                    pago = agendamento.id in agendamentosPagos.keys,
-                                    onClick = { agendamentoParaEditar = agendamento }
-                                )
-                            }
-                        }
                     }
                 }
-            }
 
-            PullRefreshIndicator(
-                refreshing = carregando,
-                state = pullRefreshState,
-                modifier = Modifier.align(Alignment.TopCenter),
-                contentColor = VerdeMusgo
-            )
-        }
+                PullRefreshIndicator(
+                    refreshing = carregando,
+                    state = pullRefreshState,
+                    modifier = Modifier.align(Alignment.TopCenter),
+                    contentColor = VerdeMusgo
+                )
+            }
 
             FloatingActionButton(
                 onClick = { mostrarFormularioCadastro = true },
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .padding(end = 16.dp, bottom = 100.dp), // aumenta o padding bottom
+                    .padding(end = 16.dp, bottom = 100.dp),
                 containerColor = VerdeMusgo,
                 contentColor = Branco,
                 shape = RoundedCornerShape(16.dp)
             ) {
                 Text("+", fontSize = 28.sp, fontWeight = FontWeight.Light)
             }
+        }
     }
-}
 
-    // Dialog do calendário para filtrar por dia
     if (mostrarDatePickerFiltro) {
         DatePickerDialog(
             onDismissRequest = { mostrarDatePickerFiltro = false },
             confirmButton = {
-                TextButton(
-                    onClick = {
-                        datePickerFiltroState.selectedDateMillis?.let { millis ->
-                            val calendar = java.util.Calendar.getInstance(
-                                java.util.TimeZone.getTimeZone("UTC")
-                            )
-                            calendar.timeInMillis = millis
-                            val data = LocalDate.of(
-                                calendar.get(java.util.Calendar.YEAR),
-                                calendar.get(java.util.Calendar.MONTH) + 1,
-                                calendar.get(java.util.Calendar.DAY_OF_MONTH)
-                            )
-                            viewModel.selecionarData(data)
-                        }
-                        mostrarDatePickerFiltro = false
+                TextButton(onClick = {
+                    datePickerFiltroState.selectedDateMillis?.let { millis ->
+                        val calendar = java.util.Calendar.getInstance(java.util.TimeZone.getTimeZone("UTC"))
+                        calendar.timeInMillis = millis
+                        val data = LocalDate.of(
+                            calendar.get(java.util.Calendar.YEAR),
+                            calendar.get(java.util.Calendar.MONTH) + 1,
+                            calendar.get(java.util.Calendar.DAY_OF_MONTH)
+                        )
+                        viewModel.selecionarData(data)
                     }
-                ) { Text("Confirmar", color = VerdeMusgo) }
+                    mostrarDatePickerFiltro = false
+                }) { Text("Confirmar", color = VerdeMusgo) }
             },
             dismissButton = {
                 TextButton(onClick = { mostrarDatePickerFiltro = false }) {
@@ -299,46 +301,66 @@ fun AgendamentoScreen(
         }
     }
 
-    // Formulário de cadastro
     if (mostrarFormularioCadastro) {
-        ModalBottomSheet(
+        androidx.compose.ui.window.Dialog(
             onDismissRequest = {
                 mostrarFormularioCadastro = false
                 viewModel.resetFormState()
             },
-            containerColor = Branco
-        ) {
-            CadastroAgendamentoForm(
-                clientes = clientes,
-                servicos = servicos,
-                formState = formState,
-                onSalvar = { clienteId, servicoId, dataHora, observacoes ->
-                    viewModel.criarAgendamento(clienteId, servicoId, dataHora, observacoes)
-                }
+            properties = androidx.compose.ui.window.DialogProperties(
+                usePlatformDefaultWidth = false
             )
+        ) {
+            Surface(
+                modifier = Modifier.fillMaxSize(),
+                color = Branco
+            ) {
+                Column(modifier = Modifier.fillMaxSize()) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(VerdeMusgo)
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        IconButton(onClick = {
+                            mostrarFormularioCadastro = false
+                            viewModel.resetFormState()
+                        }) {
+                            Text("←", fontSize = 22.sp, color = Branco)
+                        }
+                        Text(
+                            text = "Novo Agendamento",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = Branco
+                        )
+                    }
+
+                    CadastroAgendamentoForm(
+                        clientes = clientes,
+                        servicos = servicos,
+                        formState = formState,
+                        onSalvar = { clienteId, servicoId, dataHora, observacoes ->
+                            viewModel.criarAgendamento(clienteId, servicoId, dataHora, observacoes)
+                        }
+                    )
+                }
+            }
         }
     }
 
-    // Formulário de edição
     agendamentoParaEditar?.let { agendamento ->
-
         val pagamentoState by viewModel.pagamentoState.collectAsState()
         var mostrarFormPagamento by remember { mutableStateOf(false) }
-
-        // Busca o preço do serviço para sugerir no pagamento
-        val precoSugerido = viewModel.servicos.value
-            .find { it.id == agendamento.servicoId }?.preco ?: 0.0
+        val precoSugerido = viewModel.servicos.value.find { it.id == agendamento.servicoId }?.preco ?: 0.0
 
         LaunchedEffect(pagamentoState) {
             if (pagamentoState is PagamentoState.Sucesso) {
                 mostrarFormPagamento = false
                 agendamentoParaEditar = null
                 viewModel.resetPagamentoState()
-                Toast.makeText(
-                    context,
-                    "Pagamento registrado com sucesso!",
-                    Toast.LENGTH_LONG
-                ).show()
+                Toast.makeText(context, "Pagamento registrado com sucesso!", Toast.LENGTH_LONG).show()
             }
         }
 
@@ -365,30 +387,67 @@ fun AgendamentoScreen(
                 )
             }
         } else {
-            ModalBottomSheet(
+            androidx.compose.ui.window.Dialog(
                 onDismissRequest = {
                     agendamentoParaEditar = null
                     viewModel.resetFormState()
                 },
-                containerColor = Branco
-            ) {
-                EdicaoAgendamentoForm(
-                    agendamento = agendamento,
-                    servicos = servicos,
-                    formState = formState,
-                    pagamentoState = pagamentoState,
-                    precoSugerido = precoSugerido,
-                    jaPago = agendamento.id in agendamentosPagos.keys,
-                    onCancelar = { viewModel.cancelarAgendamento(agendamento.id) },
-                    onConcluir = { viewModel.concluirAgendamento(agendamento.id) },
-                    onAlterarServico = { servicoId, dataHora ->
-                        viewModel.atualizarAgendamento(agendamento.id, servicoId, dataHora)
-                    },
-                    onRegistrarPagamento = { valor, metodo, data ->
-                        viewModel.registrarPagamento(agendamento.id, valor, metodo, data)
-                    },
-                    onAbrirPagamento = { mostrarFormPagamento = true } // abre o form
+                properties = androidx.compose.ui.window.DialogProperties(
+                    usePlatformDefaultWidth = false
                 )
+            ) {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = Branco
+                ) {
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(VerdeMusgo)
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            IconButton(onClick = {
+                                agendamentoParaEditar = null
+                                viewModel.resetFormState()
+                            }) {
+                                Text("←", fontSize = 22.sp, color = Branco)
+                            }
+                            Column {
+                                Text(
+                                    text = "Editar Agendamento",
+                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = Branco
+                                )
+                                Text(
+                                    text = agendamento.clienteNome,
+                                    fontSize = 16.sp,
+                                    color = Branco.copy(alpha = 0.7f)
+                                )
+                            }
+                        }
+
+                        EdicaoAgendamentoForm(
+                            agendamento = agendamento,
+                            servicos = servicos,
+                            formState = formState,
+                            pagamentoState = pagamentoState,
+                            precoSugerido = precoSugerido,
+                            jaPago = agendamento.id in agendamentosPagos.keys,
+                            onCancelar = { viewModel.cancelarAgendamento(agendamento.id) },
+                            onConcluir = { viewModel.concluirAgendamento(agendamento.id) },
+                            onAlterarServico = { servicoId, dataHora ->
+                                viewModel.atualizarAgendamento(agendamento.id, servicoId, dataHora)
+                            },
+                            onRegistrarPagamento = { valor, metodo, data ->
+                                viewModel.registrarPagamento(agendamento.id, valor, metodo, data)
+                            },
+                            onAbrirPagamento = { mostrarFormPagamento = true }
+                        )
+                    }
+                }
             }
         }
     }
@@ -408,21 +467,17 @@ fun EdicaoAgendamentoForm(
     onConcluir: () -> Unit,
     onAlterarServico: (Long, String) -> Unit,
     onRegistrarPagamento: (Double, String, String) -> Unit,
-){
-    var servicoSelecionado by remember {
-        mutableStateOf(servicos.find { it.id == agendamento.servicoId })
-    }
+) {
+    var servicoSelecionado by remember { mutableStateOf(servicos.find { it.id == agendamento.servicoId }) }
     var dataSelecionada by remember { mutableStateOf("") }
     var horaSelecionada by remember { mutableStateOf("") }
-    var servicoDropdownAberto by remember { mutableStateOf(false) }
     var mostrarDatePicker by remember { mutableStateOf(false) }
     var mostrarTimePicker by remember { mutableStateOf(false) }
+    var listaServicosAberta by remember { mutableStateOf(false) }
+    var mostrarConfirmacaoCancelamento by remember { mutableStateOf(false) }
+    val servicosOrdenados = remember(servicos) { servicos.sortedBy { it.nome } }
     val datePickerState = rememberDatePickerState()
-    val timePickerState = rememberTimePickerState(
-        initialHour = 8,
-        initialMinute = 0,
-        is24Hour = true
-    )
+    val timePickerState = rememberTimePickerState(initialHour = 8, initialMinute = 0, is24Hour = true)
 
     Column(
         modifier = Modifier
@@ -430,36 +485,85 @@ fun EdicaoAgendamentoForm(
             .padding(horizontal = 24.dp)
             .padding(bottom = 32.dp)
     ) {
-        Text(text = "Editar Agendamento", fontSize = 18.sp, fontWeight = FontWeight.Medium, color = TextoPrimario)
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(text = agendamento.clienteNome, fontSize = 14.sp, color = TextoSecundario)
         Spacer(modifier = Modifier.height(24.dp))
+        Text("Serviço", fontSize = 16.sp, fontWeight = FontWeight.Medium, color = TextoSecundario)
+        Spacer(modifier = Modifier.height(6.dp))
 
-        ExposedDropdownMenuBox(expanded = servicoDropdownAberto, onExpandedChange = { servicoDropdownAberto = it }) {
-            OutlinedTextField(
-                value = servicoSelecionado?.nome ?: agendamento.servicoNome,
-                onValueChange = {},
-                readOnly = true,
-                label = { Text("Servico") },
-                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = servicoDropdownAberto) },
-                modifier = Modifier.fillMaxWidth().menuAnchor(),
-                shape = RoundedCornerShape(12.dp),
-                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = VerdeMusgo, focusedLabelColor = VerdeMusgo)
-            )
-            ExposedDropdownMenu(expanded = servicoDropdownAberto, onDismissRequest = { servicoDropdownAberto = false }) {
-                servicos.forEach { servico ->
-                    DropdownMenuItem(
-                        text = {
-                            Column {
-                                Text(servico.nome, fontSize = 14.sp)
-                                Text("${servico.duracaoMinutos} min • R$ ${"%.2f".format(servico.preco)}", fontSize = 12.sp, color = TextoSecundario)
-                            }
-                        },
-                        onClick = { servicoSelecionado = servico; servicoDropdownAberto = false }
+        OutlinedButton(
+            onClick = { listaServicosAberta = !listaServicosAberta },
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(10.dp),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = VerdeMusgo),
+            border = androidx.compose.foundation.BorderStroke(0.5.dp, if (listaServicosAberta) VerdeMusgo else Divisor)
+        ) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Box(
+                        modifier = Modifier.size(28.dp).clip(RoundedCornerShape(6.dp)).background(VerdeFundo),
+                        contentAlignment = Alignment.Center
+                    ) { Text("✂", fontSize = 13.sp) }
+                    Text(
+                        text = "${servicoSelecionado?.nome ?: agendamento.servicoNome} · ${servicoSelecionado?.duracaoMinutos ?: agendamento.duracaoMinutos} min",
+                        color = TextoPrimario,
+                        fontSize = 15.sp
                     )
+                }
+                Text(if (listaServicosAberta) "▲" else "▼", fontSize = 12.sp, color = TextoSecundario)
+            }
+        }
+
+        if (listaServicosAberta) {
+            Spacer(modifier = Modifier.height(6.dp))
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 250.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = Branco),
+                border = androidx.compose.foundation.BorderStroke(0.5.dp, Divisor)
+            ) {
+                LazyColumn {
+                    itemsIndexed(servicosOrdenados) { index, servico ->
+                        val selecionado = servicoSelecionado?.id == servico.id
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(if (selecionado) EventoAzulFundo else Branco)
+                                .clickable {
+                                    servicoSelecionado = servico
+                                    listaServicosAberta = false
+                                }
+                                .padding(horizontal = 14.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier.size(40.dp).clip(RoundedCornerShape(10.dp)).background(VerdeFundo),
+                                contentAlignment = Alignment.Center
+                            ) { Text("✂", fontSize = 18.sp) }
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(servico.nome, fontSize = 15.sp, fontWeight = FontWeight.Medium, color = TextoPrimario)
+                                Text(
+                                    "${servico.duracaoMinutos} min · R$ ${"%.2f".format(servico.preco).replace(".", ",")}",
+                                    fontSize = 13.sp, color = TextoSecundario
+                                )
+                            }
+                            if (selecionado) {
+                                Box(
+                                    modifier = Modifier.size(22.dp).clip(CircleShape).background(VerdeMusgo),
+                                    contentAlignment = Alignment.Center
+                                ) { Text("✓", fontSize = 13.sp, color = Branco) }
+                            }
+                        }
+                        if (index < servicosOrdenados.lastIndex) {
+                            HorizontalDivider(color = Divisor, thickness = 0.5.dp)
+                        }
+                    }
                 }
             }
         }
+
+        Spacer(modifier = Modifier.height(12.dp))
 
         Spacer(modifier = Modifier.height(12.dp))
 
@@ -529,7 +633,7 @@ fun EdicaoAgendamentoForm(
             Spacer(modifier = Modifier.height(8.dp))
 
             OutlinedButton(
-                onClick = onCancelar,
+                onClick = { mostrarConfirmacaoCancelamento = true },
                 modifier = Modifier.fillMaxWidth().height(52.dp),
                 shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.outlinedButtonColors(contentColor = TagCanceladoTexto),
@@ -537,50 +641,51 @@ fun EdicaoAgendamentoForm(
                 enabled = formState !is FormState.Loading
             ) { Text("Cancelar agendamento", fontSize = 16.sp, fontWeight = FontWeight.Medium) }
 
+            if (mostrarConfirmacaoCancelamento) {
+                AlertDialog(
+                    onDismissRequest = { mostrarConfirmacaoCancelamento = false },
+                    containerColor = Branco,
+                    title = {
+                        Text("Cancelar agendamento", fontWeight = FontWeight.Medium)
+                    },
+                    text = {
+                        Text("Tem certeza que deseja cancelar o agendamento de ${agendamento.clienteNome}?")
+                    },
+                    confirmButton = {
+                        TextButton(
+                            onClick = {
+                                mostrarConfirmacaoCancelamento = false
+                                onCancelar()
+                            }
+                        ) {
+                            Text("Sim, cancelar", color = TagCanceladoTexto)
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { mostrarConfirmacaoCancelamento = false }) {
+                            Text("Voltar", color = TextoSecundario)
+                        }
+                    }
+                )
+            }
+
         } else {
             if (agendamento.status == "CONCLUIDO") {
                 if (!jaPago) {
-                    // Mostra o botão só se ainda não foi pago
                     Button(
                         onClick = { onAbrirPagamento() },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(52.dp),
+                        modifier = Modifier.fillMaxWidth().height(52.dp),
                         shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = TagConcluidoFundo,
-                            contentColor = TagConcluidoTexto
-                        )
-                    ) {
-                        Text("Registrar Pagamento", fontSize = 16.sp, fontWeight = FontWeight.Medium)
-                    }
+                        colors = ButtonDefaults.buttonColors(containerColor = TagConcluidoFundo, contentColor = TagConcluidoTexto)
+                    ) { Text("Registrar Pagamento", fontSize = 16.sp, fontWeight = FontWeight.Medium) }
                 } else {
-                    // Agendamento já pago — mostra mensagem informativa
-                    Surface(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
-                        color = EventoVerdeFundo
-                    ) {
-                        Text(
-                            text = "Pagamento já registrado.",
-                            modifier = Modifier.padding(16.dp),
-                            color = EventoVerdeTexto,
-                            fontSize = 14.sp
-                        )
+                    Surface(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp), color = EventoVerdeFundo) {
+                        Text("Pagamento já registrado.", modifier = Modifier.padding(16.dp), color = EventoVerdeTexto, fontSize = 14.sp)
                     }
                 }
             } else {
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    color = TagCanceladoFundo
-                ) {
-                    Text(
-                        text = "Este agendamento foi cancelado.",
-                        modifier = Modifier.padding(16.dp),
-                        color = TagCanceladoTexto,
-                        fontSize = 14.sp
-                    )
+                Surface(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp), color = TagCanceladoFundo) {
+                    Text("Este agendamento foi cancelado.", modifier = Modifier.padding(16.dp), color = TagCanceladoTexto, fontSize = 14.sp)
                 }
             }
         }
@@ -648,95 +753,261 @@ fun CadastroAgendamentoForm(
     var horaSelecionada by remember { mutableStateOf("") }
     var mostrarDatePicker by remember { mutableStateOf(false) }
     var mostrarTimePicker by remember { mutableStateOf(false) }
-    var clienteDropdownAberto by remember { mutableStateOf(false) }
-    var servicoDropdownAberto by remember { mutableStateOf(false) }
+    var listaClientesAberta by remember { mutableStateOf(false) }
+    var listaServicosAberta by remember { mutableStateOf(false) }
     val datePickerState = rememberDatePickerState()
     val timePickerState = rememberTimePickerState(initialHour = 8, initialMinute = 0, is24Hour = true)
+    val scrollState = rememberScrollState()
 
-    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 32.dp)) {
-        Text(text = "Novo Agendamento", fontSize = 18.sp, fontWeight = FontWeight.Medium, color = TextoPrimario)
+    val clientesOrdenados = remember(clientes) { clientes.sortedBy { it.nome } }
+    val servicosOrdenados = remember(servicos) { servicos.sortedBy { it.nome } }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .verticalScroll(scrollState)
+            .padding(horizontal = 20.dp)
+            .padding(bottom = 32.dp)
+    ) {
+
+        // Cliente — com espaço extra no topo
         Spacer(modifier = Modifier.height(24.dp))
+        Text("Cliente", fontSize = 16.sp, fontWeight = FontWeight.Medium, color = TextoSecundario)
+        Spacer(modifier = Modifier.height(6.dp))
 
-        ExposedDropdownMenuBox(expanded = clienteDropdownAberto, onExpandedChange = { clienteDropdownAberto = it }) {
-            OutlinedTextField(
-                value = clienteSelecionado?.nome ?: "", onValueChange = {}, readOnly = true,
-                label = { Text("Cliente") }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = clienteDropdownAberto) },
-                modifier = Modifier.fillMaxWidth().menuAnchor(), shape = RoundedCornerShape(12.dp),
-                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = VerdeMusgo, focusedLabelColor = VerdeMusgo)
-            )
-            ExposedDropdownMenu(expanded = clienteDropdownAberto, onDismissRequest = { clienteDropdownAberto = false }) {
-                clientes.forEach { cliente ->
-                    DropdownMenuItem(text = { Text(cliente.nome) }, onClick = { clienteSelecionado = cliente; clienteDropdownAberto = false })
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        ExposedDropdownMenuBox(expanded = servicoDropdownAberto, onExpandedChange = { servicoDropdownAberto = it }) {
-            OutlinedTextField(
-                value = servicoSelecionado?.nome ?: "", onValueChange = {}, readOnly = true,
-                label = { Text("Servico") }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = servicoDropdownAberto) },
-                modifier = Modifier.fillMaxWidth().menuAnchor(), shape = RoundedCornerShape(12.dp),
-                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = VerdeMusgo, focusedLabelColor = VerdeMusgo)
-            )
-            ExposedDropdownMenu(expanded = servicoDropdownAberto, onDismissRequest = { servicoDropdownAberto = false }) {
-                servicos.forEach { servico ->
-                    DropdownMenuItem(
-                        text = {
-                            Column {
-                                Text(servico.nome, fontSize = 14.sp)
-                                Text("${servico.duracaoMinutos} min • R$ ${"%.2f".format(servico.preco)}", fontSize = 12.sp, color = TextoSecundario)
-                            }
-                        },
-                        onClick = { servicoSelecionado = servico; servicoDropdownAberto = false }
+        OutlinedButton(
+            onClick = {
+                listaClientesAberta = !listaClientesAberta
+                if (listaClientesAberta) listaServicosAberta = false
+            },
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(10.dp),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = VerdeMusgo),
+            border = androidx.compose.foundation.BorderStroke(0.5.dp, if (listaClientesAberta) VerdeMusgo else Divisor)
+        ) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (clienteSelecionado != null) {
+                        Box(
+                            modifier = Modifier.size(28.dp).clip(CircleShape).background(VerdeFundo),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(clienteSelecionado!!.nome.first().uppercase(), fontSize = 13.sp, fontWeight = FontWeight.Medium, color = VerdeMusgo)
+                        }
+                    }
+                    Text(
+                        text = clienteSelecionado?.nome ?: "Selecionar cliente",
+                        color = if (clienteSelecionado != null) TextoPrimario else TextoSecundario,
+                        fontSize = 15.sp
                     )
                 }
+                Text(if (listaClientesAberta) "▲" else "▼", fontSize = 12.sp, color = TextoSecundario)
             }
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
+        if (listaClientesAberta) {
+            Spacer(modifier = Modifier.height(6.dp))
 
-        OutlinedButton(
-            onClick = { mostrarDatePicker = true }, modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.outlinedButtonColors(contentColor = VerdeMusgo),
-            border = androidx.compose.foundation.BorderStroke(1.dp, VerdeMusgo)
-        ) {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text(text = if (dataSelecionada.isBlank()) "Selecionar data" else dataSelecionada, color = if (dataSelecionada.isBlank()) TextoSecundario else TextoPrimario)
-                Text("📅", fontSize = 18.sp)
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 250.dp), // altura máxima com scroll
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = Branco),
+                border = androidx.compose.foundation.BorderStroke(0.5.dp, Divisor)
+            ) {
+                LazyColumn {
+                    itemsIndexed(clientesOrdenados) { index, cliente ->
+                        val selecionado = clienteSelecionado?.id == cliente.id
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(if (selecionado) EventoAzulFundo else Branco)
+                                .clickable {
+                                    clienteSelecionado = cliente
+                                    listaClientesAberta = false
+                                }
+                                .padding(horizontal = 14.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier.size(40.dp).clip(CircleShape).background(VerdeFundo),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(cliente.nome.first().uppercase(), fontSize = 15.sp, fontWeight = FontWeight.Medium, color = VerdeMusgo)
+                            }
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(cliente.nome, fontSize = 15.sp, fontWeight = FontWeight.Medium, color = TextoPrimario)
+                                if (cliente.email.isNotBlank()) {
+                                    Text(cliente.email, fontSize = 13.sp, color = TextoSecundario)
+                                }
+                            }
+                            if (selecionado) {
+                                Box(
+                                    modifier = Modifier.size(22.dp).clip(CircleShape).background(VerdeMusgo),
+                                    contentAlignment = Alignment.Center
+                                ) { Text("✓", fontSize = 13.sp, color = Branco) }
+                            }
+                        }
+                        if (index < clientesOrdenados.lastIndex) {
+                            HorizontalDivider(color = Divisor, thickness = 0.5.dp)
+                        }
+                    }
+                }
             }
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(20.dp))
+
+        // --- SERVIÇO ---
+        Text("Serviço", fontSize = 16.sp, fontWeight = FontWeight.Medium, color = TextoSecundario)
+        Spacer(modifier = Modifier.height(6.dp))
 
         OutlinedButton(
-            onClick = { mostrarTimePicker = true }, modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.outlinedButtonColors(contentColor = VerdeMusgo),
-            border = androidx.compose.foundation.BorderStroke(1.dp, VerdeMusgo)
+            onClick = {
+                listaServicosAberta = !listaServicosAberta
+                if (listaServicosAberta) listaClientesAberta = false
+            },
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(10.dp),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = VerdeMusgo),
+            border = androidx.compose.foundation.BorderStroke(0.5.dp, if (listaServicosAberta) VerdeMusgo else Divisor)
         ) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text(text = if (horaSelecionada.isBlank()) "Selecionar hora" else horaSelecionada, color = if (horaSelecionada.isBlank()) TextoSecundario else TextoPrimario)
-                Text("🕐", fontSize = 18.sp)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (servicoSelecionado != null) {
+                        Box(
+                            modifier = Modifier.size(28.dp).clip(RoundedCornerShape(6.dp)).background(VerdeFundo),
+                            contentAlignment = Alignment.Center
+                        ) { Text("✂", fontSize = 13.sp) }
+                    }
+                    Text(
+                        text = if (servicoSelecionado != null)
+                            "${servicoSelecionado!!.nome} · ${servicoSelecionado!!.duracaoMinutos} min"
+                        else "Selecionar serviço",
+                        color = if (servicoSelecionado != null) TextoPrimario else TextoSecundario,
+                        fontSize = 15.sp
+                    )
+                }
+                Text(if (listaServicosAberta) "▲" else "▼", fontSize = 12.sp, color = TextoSecundario)
+            }
+        }
+
+        if (listaServicosAberta) {
+            Spacer(modifier = Modifier.height(6.dp))
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 250.dp), // altura máxima com scroll
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = Branco),
+                border = androidx.compose.foundation.BorderStroke(0.5.dp, Divisor)
+            ) {
+                LazyColumn {
+                    itemsIndexed(servicosOrdenados) { index, servico ->
+                        val selecionado = servicoSelecionado?.id == servico.id
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(if (selecionado) EventoAzulFundo else Branco)
+                                .clickable {
+                                    servicoSelecionado = servico
+                                    listaServicosAberta = false
+                                }
+                                .padding(horizontal = 14.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier.size(40.dp).clip(RoundedCornerShape(10.dp)).background(VerdeFundo),
+                                contentAlignment = Alignment.Center
+                            ) { Text("✂", fontSize = 18.sp) }
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(servico.nome, fontSize = 15.sp, fontWeight = FontWeight.Medium, color = TextoPrimario)
+                                Text(
+                                    "${servico.duracaoMinutos} min · R$ ${"%.2f".format(servico.preco).replace(".", ",")}",
+                                    fontSize = 13.sp, color = TextoSecundario
+                                )
+                            }
+                            if (selecionado) {
+                                Box(
+                                    modifier = Modifier.size(22.dp).clip(CircleShape).background(VerdeMusgo),
+                                    contentAlignment = Alignment.Center
+                                ) { Text("✓", fontSize = 13.sp, color = Branco) }
+                            }
+                        }
+                        if (index < servicosOrdenados.lastIndex) {
+                            HorizontalDivider(color = Divisor, thickness = 0.5.dp)
+                        }
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        // --- DATA E HORA ---
+        Text("Data e hora", fontSize = 16.sp, fontWeight = FontWeight.Medium, color = TextoSecundario)
+        Spacer(modifier = Modifier.height(6.dp))
+
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            OutlinedButton(
+                onClick = { mostrarDatePicker = true },
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(10.dp),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = VerdeMusgo),
+                border = androidx.compose.foundation.BorderStroke(0.5.dp, Divisor)
+            ) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = if (dataSelecionada.isBlank()) "Data" else dataSelecionada,
+                        color = if (dataSelecionada.isBlank()) TextoSecundario else TextoPrimario,
+                        fontSize = 15.sp
+                    )
+                    Text("📅", fontSize = 16.sp)
+                }
+            }
+            OutlinedButton(
+                onClick = { mostrarTimePicker = true },
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(10.dp),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = VerdeMusgo),
+                border = androidx.compose.foundation.BorderStroke(0.5.dp, Divisor)
+            ) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = if (horaSelecionada.isBlank()) "Hora" else horaSelecionada,
+                        color = if (horaSelecionada.isBlank()) TextoSecundario else TextoPrimario,
+                        fontSize = 15.sp
+                    )
+                    Text("🕐", fontSize = 16.sp)
+                }
             }
         }
 
         Spacer(modifier = Modifier.height(12.dp))
 
         OutlinedTextField(
-            value = observacoes, onValueChange = { observacoes = it },
-            label = { Text("Observacoes (opcional)") }, modifier = Modifier.fillMaxWidth(), maxLines = 3,
-            shape = RoundedCornerShape(12.dp),
-            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = VerdeMusgo, focusedLabelColor = VerdeMusgo, cursorColor = VerdeMusgo)
+            value = observacoes,
+            onValueChange = { observacoes = it },
+            label = { Text("Observações (opcional)") },
+            modifier = Modifier.fillMaxWidth(),
+            maxLines = 3,
+            shape = RoundedCornerShape(10.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = VerdeMusgo,
+                focusedLabelColor = VerdeMusgo,
+                cursorColor = VerdeMusgo
+            )
         )
 
-        Spacer(modifier = Modifier.height(8.dp))
-
         if (formState is FormState.Erro) {
+            Spacer(modifier = Modifier.height(8.dp))
             Text(text = (formState as FormState.Erro).message, color = MaterialTheme.colorScheme.error, fontSize = 13.sp)
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(20.dp))
 
         Button(
             onClick = {
@@ -805,7 +1076,7 @@ fun CadastroAgendamentoForm(
 @Composable
 fun AgendamentoCard(agendamento: Agendamento, pago: Boolean = false, onClick: () -> Unit) {
     val (tagFundo, tagTexto) = when {
-        agendamento.status == "AGENDADO"  -> TagAgendadoFundo  to TagAgendadoTexto
+        agendamento.status == "AGENDADO" -> TagAgendadoFundo to TagAgendadoTexto
         agendamento.status == "CONCLUIDO" && pago -> EventoVerdeBorda to Branco
         agendamento.status == "CONCLUIDO" && !pago -> EventoAmareloBorda to Branco
         agendamento.status == "CANCELADO" -> TagCanceladoFundo to TagCanceladoTexto
@@ -813,46 +1084,26 @@ fun AgendamentoCard(agendamento: Agendamento, pago: Boolean = false, onClick: ()
     }
 
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onClick() },
+        modifier = Modifier.fillMaxWidth().clickable { onClick() },
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = Branco),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         border = androidx.compose.foundation.BorderStroke(0.5.dp, Divisor)
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.Top
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = agendamento.clienteNome,
-                    fontWeight = FontWeight.Medium,
-                    fontSize = 15.sp,
-                    color = TextoPrimario
-                )
+                Text(agendamento.clienteNome, fontWeight = FontWeight.Medium, fontSize = 15.sp, color = TextoPrimario)
                 Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = agendamento.servicoNome,
-                    fontSize = 13.sp,
-                    color = TextoSecundario
-                )
+                Text(agendamento.servicoNome, fontSize = 13.sp, color = TextoSecundario)
                 Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = formatarDataHora(agendamento.dataHora),
-                    fontSize = 13.sp,
-                    color = TextoSecundario
-                )
+                Text(formatarDataHora(agendamento.dataHora), fontSize = 13.sp, color = TextoSecundario)
             }
             Column(horizontalAlignment = Alignment.End) {
-                Surface(
-                    shape = RoundedCornerShape(20.dp),
-                    color = tagFundo
-                ) {
+                Surface(shape = RoundedCornerShape(20.dp), color = tagFundo) {
                     Text(
                         text = agendamento.status,
                         fontSize = 11.sp,
@@ -861,30 +1112,16 @@ fun AgendamentoCard(agendamento: Agendamento, pago: Boolean = false, onClick: ()
                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                     )
                 }
-                // Tag de PAGO ou Nao pago
                 if (agendamento.status == "CONCLUIDO") {
                     if (pago) {
                         Spacer(modifier = Modifier.height(4.dp))
-                        Surface(
-                            shape = RoundedCornerShape(20.dp),
-                            color = EventoVerdeBorda
-                        ) {
-                            Text(
-                                text = "PAGO",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = Branco,
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                            )
+                        Surface(shape = RoundedCornerShape(20.dp), color = EventoVerdeBorda) {
+                            Text("PAGO", fontSize = 11.sp, fontWeight = FontWeight.Medium, color = Branco,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp))
                         }
                     } else {
                         Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "Não pago",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = EventoAmareloBorda
-                        )
+                        Text("Não pago", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = EventoAmareloBorda)
                     }
                 }
                 Spacer(modifier = Modifier.height(4.dp))

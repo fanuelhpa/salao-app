@@ -21,7 +21,7 @@ import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
-enum class FiltroStatus { AGENDADO, CANCELADO, PENDENTES }
+enum class FiltroStatus { AGENDADO, PENDENTES }
 
 class AgendamentoViewModel(
     private val token: String
@@ -74,13 +74,6 @@ class AgendamentoViewModel(
                             (agendamento.status == "AGENDADO" || agendamento.status == "CONCLUIDO")
                 }.sortedBy { it.dataHora }
             }
-            FiltroStatus.CANCELADO -> {
-                val dataFormatada = data.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
-                agendamentos.filter { agendamento ->
-                    agendamento.dataHora.startsWith(dataFormatada) &&
-                            agendamento.status == "CANCELADO"
-                }.sortedBy { it.dataHora }
-            }
         }
     }.stateIn(
         scope = viewModelScope,
@@ -99,6 +92,9 @@ class AgendamentoViewModel(
 
     private val _pagamentoState = MutableStateFlow<PagamentoState>(PagamentoState.Idle)
     val pagamentoState: StateFlow<PagamentoState> = _pagamentoState
+
+    private val _cancelamentoState = MutableStateFlow<FormState>(FormState.Idle)
+    val cancelamentoState: StateFlow<FormState> = _cancelamentoState
 
     init {
         carregarAgendamentos()
@@ -129,7 +125,7 @@ class AgendamentoViewModel(
     fun selecionarData(data: LocalDate) { _dataSelecionada.value = data }
     fun selecionarFiltro(filtro: FiltroStatus) { _filtroStatus.value = filtro }
 
-    private fun carregarClientesEServicos() {
+    fun carregarClientesEServicos() {
         viewModelScope.launch {
             val result = clienteRepository.listarClientes()
             if (result.isSuccess) _clientes.value = result.getOrNull()!!
@@ -182,18 +178,22 @@ class AgendamentoViewModel(
     }
 
     fun cancelarAgendamento(id: Long) {
-        _formState.value = FormState.Loading
+        _cancelamentoState.value = FormState.Loading
         viewModelScope.launch {
             val result = agendamentoRepository.cancelarAgendamento(id)
             if (result.isSuccess) {
-                _formState.value = FormState.Sucesso
+                _cancelamentoState.value = FormState.Sucesso
                 carregarAgendamentos()
             } else {
-                _formState.value = FormState.Erro(
+                _cancelamentoState.value = FormState.Erro(
                     result.exceptionOrNull()?.message ?: "Erro ao cancelar agendamento."
                 )
             }
         }
+    }
+
+    fun resetCancelamentoState() {
+        _cancelamentoState.value = FormState.Idle
     }
 
     fun concluirAgendamento(id: Long) {
